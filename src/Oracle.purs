@@ -1,7 +1,9 @@
 module Erl.Oracle
-  ( CompartmentId(..)
+  ( AvailabilityDomainId(..)
+  , CompartmentId(..)
   , ImageId(..)
   , Shape(..)
+  , listAvailabilityDomains
   , listCompartments
   , listCompatibleShapes
   , listImages
@@ -74,10 +76,75 @@ derive instance Generic ImageId _
 instance Show ImageId where
   show = genericShow
 
+newtype AvailabilityDomainId = AvailabilityDomainId String
+
+derive newtype instance Eq AvailabilityDomainId
+derive newtype instance Ord AvailabilityDomainId
+derive newtype instance ReadForeign AvailabilityDomainId
+derive newtype instance WriteForeign AvailabilityDomainId
+derive newtype instance WriteForeignKey AvailabilityDomainId
+derive instance Newtype AvailabilityDomainId _
+derive instance Generic AvailabilityDomainId _
+instance Show AvailabilityDomainId where
+  show = genericShow
+
 type BaseRequest a =
   {
   | a
   }
+
+-- type ListInstancesRequest = BaseRequest
+--   ( availabliltyDomain :: Maybe AvailabilityDomain
+--   , capacityReservationId :: Maybe CapacityReservationId
+--   , computeClusterId :: Maybe ComputeClusterId
+--   , displayName :: Maybe String
+--   , lifecycleState :: Maybe LifecycleState
+--   )
+
+type ListAvailabilityDomainRequest = BaseRequest
+  ( compartment :: Maybe CompartmentId
+  )
+
+type AvailabilityDomainInt =
+  { "compartment-id" :: Maybe String
+  , "id" :: Maybe String
+  , "name" :: Maybe String
+  }
+
+type AvailabilityDomain =
+  { compartmentId :: Maybe CompartmentId
+  , id :: Maybe AvailabilityDomainId
+  , name :: Maybe String
+  }
+
+fromAvailabilityDomainInt :: AvailabilityDomainInt -> F AvailabilityDomain
+fromAvailabilityDomainInt
+  { "compartment-id": compartmentId
+  , "id": id
+  , "name": name
+  } = do
+  pure
+    { compartmentId: maybe Nothing (\c -> Just $ CompartmentId c) compartmentId
+    , id: maybe Nothing (\d -> Just $ AvailabilityDomainId d) id
+    , name
+    }
+
+type AvailabilityDomainsResponse =
+  { "data" :: List AvailabilityDomainInt
+  }
+
+fromAvailabilityDomainResponse :: AvailabilityDomainsResponse -> F (List AvailabilityDomain)
+fromAvailabilityDomainResponse { "data": entries } = ado
+  domains <- traverse fromAvailabilityDomainInt entries
+  in domains
+
+listAvailabilityDomains :: ListAvailabilityDomainRequest -> Effect (Either MultipleErrors (List AvailabilityDomain))
+listAvailabilityDomains req@{ compartment } = do
+  let
+    cli = ociCliBase req $ "iam availability-domain list" <>
+      (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
+  outputJson <- runOciCli cli
+  pure $ runExcept $ fromAvailabilityDomainResponse =<< readJSON' =<< outputJson
 
 type ListImageShapeCompatibilityRequest = BaseRequest
   ( imageId :: ImageId

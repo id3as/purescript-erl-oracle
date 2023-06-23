@@ -12,7 +12,7 @@ import Erl.Atom (atom)
 import Erl.Data.List (List)
 import Erl.Data.List as List
 import Erl.Kernel.Application as Application
-import Erl.Oracle (CompartmentId(..), ImageId(..), listCompartments, listCompatibleShapes, listImages, listShapes)
+import Erl.Oracle (CompartmentId(..), ImageId(..), listCompartments, listCompatibleShapes, listImages, listShapes, listAvailabilityDomains)
 import Erl.Process (unsafeRunProcessM)
 import Erl.Test.EUnit (TestF, TestSet, collectTests, suite, test)
 import Test.Assert (assertEqual, assertTrue')
@@ -54,6 +54,17 @@ ociTests = do
       unsafeRunProcessM
         $ do
             actual <- liftEffect $ listImages { compartment }
+            case actual of
+              Right actualList -> do
+                liftEffect $ assertTrue' "At least 1 image offerings" $ (length actualList) >= 1
+              Left _ -> do
+                liftEffect $ assertEqual { expected: Right List.nil, actual }
+  suite "list availability domains" do
+    test "Can parse response" do
+      void $ Application.ensureAllStarted $ atom "erlexec"
+      unsafeRunProcessM
+        $ do
+            actual <- liftEffect $ listAvailabilityDomains { compartment }
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "At least 1 image offerings" $ (length actualList) >= 1
