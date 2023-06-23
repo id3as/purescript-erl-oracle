@@ -1,0 +1,11 @@
+{application, oci_cli,
+ [ {description, "tests for oci library"}
+ , {vsn, "0.1"}
+ , {registered, []}
+ , {modules, []}
+ , {applications, [ kernel
+                  , stdlib
+                  , jsx
+                  ]}
+ , {env, []}
+ ]}.

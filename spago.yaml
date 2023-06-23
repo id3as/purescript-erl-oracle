@@ -1,0 +1,142 @@
+workspace:
+  package_set:
+    url: https://raw.githubusercontent.com/purerl/package-sets/erl-0.15.3-20220629/packages.json
+    hash: sha256-kLmZv2u5dWVUUaQEwK0b3T1Ghce5a/hG0zlizaYfcXs=
+  extra_packages:
+    erl-untagged-union:
+      dependencies:
+        - erl-atom
+        - erl-binary
+        - erl-lists
+        - erl-process
+        - erl-tuples
+        - foreign
+        - maybe
+        - partial
+        - prelude
+        - typelevel-prelude
+        - unsafe-coerce
+      git: https://github.com/id3as/purescript-erl-untagged-union.git
+      ref: 2ee85de4baf6891ddea799134647fd0b8c4fd5f7
+    simple-json:
+      dependencies:
+        - erl-kernel
+        - erl-lists
+        - erl-maps
+        - exceptions
+        - foreign
+        - nullable
+        - prelude
+        - record
+        - typelevel-prelude
+        - variant
+      git: https://github.com/id3as/purescript-simple-json.git
+      ref: 19b092b4bea82b5751169db81de53bd4addb3402
+    erl-nativerefs:
+      dependencies:
+        - effect
+        - erl-tuples
+        - prelude
+      git: https://github.com/id3as/purescript-erl-nativerefs.git
+      ref: dbac73535c110f39e6c71b50cf377f490f438888
+    erl-process:
+      dependencies:
+        - datetime
+        - effect
+        - either
+        - foreign
+        - integers
+        - prelude
+      git: https://github.com/id3as/purescript-erl-process.git
+      ref: 5df4b6fbac7eeedcbd0f6c731949b1fed8a35b99
+    erl-kernel:
+      dependencies:
+        - convertable-options
+        - datetime
+        - effect
+        - either
+        - erl-atom
+        - erl-binary
+        - erl-lists
+        - erl-maps
+        - erl-process
+        - erl-tuples
+        - erl-untagged-union
+        - foldable-traversable
+        - foreign
+        - functions
+        - integers
+        - maybe
+        - newtype
+        - partial
+        - prelude
+        - record
+        - typelevel-prelude
+        - unsafe-coerce
+      git: https://github.com/id3as/purescript-erl-kernel.git
+      ref: 67c7f7bc1d3dbe6dc950162ec667479cc77c4467
+    erl-test-eunit:
+      dependencies:
+        - assert
+        - console
+        - debug
+        - erl-atom
+        - erl-lists
+        - erl-tuples
+        - foreign
+        - free
+        - prelude
+        - psci-support
+      git: https://github.com/id3as/purescript-erl-test-eunit.git
+      ref: aa3ce09bc963bcbdb8a4be4ab766597d7f138d6a
+    erl-test-eunit-discovery:
+      dependencies:
+        - effect
+        - erl-lists
+        - erl-modules
+        - erl-test-eunit
+        - filterable
+        - foldable-traversable
+        - free
+        - maybe
+        - prelude
+      git: https://github.com/id3as/purescript-erl-test-eunit-discovery.git
+      ref: 33321117308649036b0b7b467b506d1dbeee5525
+    erl-ssl:
+      dependencies:
+        - "convertable-options"
+        - "datetime"
+        - "effect"
+        - "either"
+        - "erl-atom"
+        - "erl-binary"
+        - "erl-kernel"
+        - "erl-lists"
+        - "erl-logger"
+        - "erl-otp-types"
+        - "erl-tuples"
+        - "foreign"
+        - "maybe"
+        - "partial"
+        - "prelude"
+        - "record"
+        - "unsafe-reference"
+      git: https://github.com/id3as/purescript-erl-ssl.git
+      ref: e37daf97c8a688a15abce813eda629ec62799012
+  backend:
+    cmd: purerl
+package:
+  dependencies:
+    - arrays
+    - assert
+    - datetime
+    - datetime-parsing
+    - erl-kernel
+    - erl-process
+    - erl-test-eunit
+    - erl-test-eunit-discovery
+    - simple-json
+  name: erl-oracle
+  test:
+    dependencies: []
+    main: Test.Main
