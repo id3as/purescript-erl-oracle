@@ -3,9 +3,8 @@ module Test.Main where
 import Prelude
 
 import Control.Monad.Free (Free)
-import Data.Either (Either(..), hush, isRight)
+import Data.Either (Either(..))
 import Data.Foldable (length)
-import Data.List as DL
 import Data.Maybe (Maybe(..))
 import Debug (spy)
 import Effect.Class (liftEffect)

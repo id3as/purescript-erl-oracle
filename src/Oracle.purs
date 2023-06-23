@@ -29,7 +29,7 @@ import Erl.Json (genericTaggedReadForeign, genericTaggedWriteForeign, genericEnu
 import Erl.Kernel.Inet (Hostname, IpAddress, parseIpAddress)
 import Foreign (F, ForeignError(..), MultipleErrors, readString, unsafeFromForeign)
 import Partial.Unsafe (unsafeCrashWith)
-import Simple.JSON (class ReadForeign, class WriteForeign, class WriteForeignKey, E, readJSON', writeImpl, writeJSON)
+import Simple.JSON (class ReadForeign, class WriteForeign, class WriteForeignKey, E, read', readJSON', writeImpl, writeJSON)
 import Text.Parsing.Parser (ParserT, fail, parseErrorMessage, runParser)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -235,6 +235,166 @@ type BaseRequest a =
   { compartment :: Maybe String
   | a
   }
+
+type ListImagesRequest = BaseRequest ()
+
+type InstanceAgentFeaturesInt =
+  { "is-management-supported" :: Maybe Boolean -- unused
+  , "is-monitoring-supproted" :: Maybe Boolean -- unused
+  }
+
+type InstanceAgentFeatures =
+  { isManagementSupported :: Maybe Boolean
+  , isMonitoringSupported :: Maybe Boolean
+  }
+
+fromInstanceAgentFeaturesInt :: Maybe InstanceAgentFeaturesInt -> F (Maybe InstanceAgentFeatures)
+fromInstanceAgentFeaturesInt features =
+  case features of
+    Just
+      { "is-management-supported": isManagementSupported
+      , "is-monitoring-supproted": isMonitoringSupported
+      } -> do
+      pure $ Just { isManagementSupported, isMonitoringSupported }
+    Nothing -> pure Nothing
+
+type LaunchOptionsInt =
+  { "boot-volume-type" :: Maybe String
+  , "firmware" :: Maybe String
+  , "is-consistent-volume-naming-enabled" :: Maybe Boolean
+  , "is-pv-encryption-in-transit-enabled" :: Maybe Boolean
+  , "network-type" :: Maybe String
+  , "remote-data-volume-type" :: Maybe String
+  }
+
+type LaunchOptions =
+  { bootVolumeType :: Maybe String
+  , firmware :: Maybe String
+  , isConsistentVolumeNamingEnabled :: Maybe Boolean
+  , isPvEncryptionInTransitEnabled :: Maybe Boolean
+  , networkType :: Maybe String
+  , remoteDataVolumeType :: Maybe String
+  }
+
+fromLaunchOptionsInt :: Maybe LaunchOptionsInt -> F (Maybe LaunchOptions)
+fromLaunchOptionsInt opts =
+  case opts of
+    Just
+      { "boot-volume-type": bootVolumeType
+      , "firmware": firmware
+      , "is-consistent-volume-naming-enabled": isConsistentVolumeNamingEnabled
+      , "is-pv-encryption-in-transit-enabled": isPvEncryptionInTransitEnabled
+      , "network-type": networkType
+      , "remote-data-volume-type": remoteDataVolumeType
+      } -> do
+      pure $ Just
+        { bootVolumeType
+        , firmware
+        , isConsistentVolumeNamingEnabled
+        , isPvEncryptionInTransitEnabled
+        , networkType
+        , remoteDataVolumeType
+        }
+    Nothing -> pure Nothing
+
+type ImageDescriptionInt =
+  { "agent-features" :: Maybe InstanceAgentFeaturesInt
+  , "base-image-id" :: Maybe String
+  , "billable-size-in-gbs" :: Maybe Int
+  , "compartment-id" :: String
+  , "create-image-allowed" :: Boolean
+  --, "defined-tags" :: Maybe (List (Tuple String String))
+  , "display-name" :: Maybe String
+  --, "freeform-tags" :: Maybe (List (Tuple String String))
+  , "id" :: String
+  , "launch-mode" :: Maybe String
+  , "launch-options" :: Maybe LaunchOptionsInt
+  , "lifecycle-state" :: String
+  , "listing-type" :: Maybe String
+  , "operating-system" :: String
+  , "operating-system-version" :: String
+  , "size-in-mbs" :: Maybe Int
+  , "time-created" :: String
+  }
+
+type ImageDescription =
+  { agentFeatures :: Maybe InstanceAgentFeatures
+  , baseImageId :: Maybe String
+  , billableSizeInGbs :: Maybe Int
+  , compartmentId :: String
+  , createImageAllowed :: Boolean
+  -- , definedTags :: Maybe (List (Tuple String String))
+  , displayName :: Maybe String
+  --, freeformTags :: Maybe (List (Tuple String String))
+  , id :: String
+  , launchMode :: Maybe String
+  , launchOptions :: Maybe LaunchOptions
+  , lifecycleState :: String
+  , listingType :: Maybe String
+  , operatingSystem :: String
+  , operatingSystemVersion :: String
+  , sizeInMbs :: Maybe Int
+  , timeCreated :: String
+
+  }
+
+fromImageDescriptionInt :: ImageDescriptionInt -> F ImageDescription
+fromImageDescriptionInt
+  { "agent-features": agentFeaturesInt
+  , "base-image-id": baseImageId
+  , "billable-size-in-gbs": billableSizeInGbs
+  , "compartment-id": compartmentId
+  , "create-image-allowed": createImageAllowed
+  --, "defined-tags": definedTags
+  , "display-name": displayName
+  --, "freeform-tags": freeformTags
+  , "id": id
+  , "launch-mode": launchMode
+  , "launch-options": launchOptionsInt
+  , "lifecycle-state": lifecycleState
+  , "listing-type": listingType
+  , "operating-system": operatingSystem
+  , "operating-system-version": operatingSystemVersion
+  , "size-in-mbs": sizeInMbs
+  , "time-created": timeCreated
+  } = ado
+  agentFeatures <- fromInstanceAgentFeaturesInt agentFeaturesInt
+  launchOptions <- fromLaunchOptionsInt launchOptionsInt
+  in
+    { agentFeatures
+    , baseImageId
+    , billableSizeInGbs
+    , compartmentId
+    , createImageAllowed
+    --, definedTags
+    , displayName
+    --, freeformTags
+    , id
+    , launchMode
+    , launchOptions
+    , lifecycleState
+    , listingType
+    , operatingSystem
+    , operatingSystemVersion
+    , sizeInMbs
+    , timeCreated
+    }
+
+type ImageDescriptionsInt =
+  { "data" :: List ImageDescriptionInt
+  }
+
+fromImagesResponseInt :: ImageDescriptionsInt -> F (List ImageDescription)
+fromImagesResponseInt { "data": shapeData } = ado
+  shapes <- traverse fromImageDescriptionInt shapeData
+  in shapes
+
+listImages :: ListImagesRequest -> Effect (Either MultipleErrors (List ImageDescription))
+listImages req = do
+  let
+    cli = ociCliBase req "compute image list"
+  outputJson <- runOciCli cli
+  pure $ runExcept $ fromImagesResponseInt =<< readJSON' =<< outputJson
 
 type ListShapesRequest = BaseRequest ()
 
@@ -488,6 +648,8 @@ type ShapeDescriptionInt =
   { "availability-domain" :: Maybe String
   , "baseline-ocpu-utilizations" :: Maybe (List String)
   , "billing-type" :: Maybe String
+  , "defined-tags" :: Maybe (Map String (Map String String))
+  , "freeform-tags" :: Maybe (Map String String)
   , "gpu-description" :: Maybe String
   , "gpus" :: Maybe Int
   , "is-billed-for-stopped-instance" :: Maybe Boolean
@@ -521,6 +683,8 @@ type ShapeDescription =
   { availabilityDomain :: Maybe String
   , baselineOcpuUtilizations :: Maybe (List String)
   , billingType :: Maybe String
+  , definedTags :: Maybe (Map String (Map String String))
+  , freeformTags :: Maybe (Map String String)
   , gpuDescription :: Maybe String
   , gpus :: Maybe Int
   , isBilledForStoppedInstance :: Maybe Boolean
@@ -555,6 +719,8 @@ fromShapesDescriptionInt
   { "availability-domain": availabilityDomain
   , "baseline-ocpu-utilizations": baselineOcpuUtilizations
   , "billing-type": billingType
+  , "defined-tags": definedTags
+  , "freeform-tags" : freeformTags
   , "gpu-description": gpuDescription
   , "gpus": gpus
   , "is-billed-for-stopped-instance": isBilledForStoppedInstance
@@ -593,6 +759,8 @@ fromShapesDescriptionInt
     { availabilityDomain
     , baselineOcpuUtilizations
     , billingType
+    , definedTags,
+    , freeformTags,
     , gpuDescription
     , gpus
     , isBilledForStoppedInstance
@@ -642,9 +810,9 @@ type ListCompartmentsRequest = BaseRequest ()
 
 type CompartmentDescriptionInt =
   { "compartment-id" :: String
-  --, "defined-tags" :: Maybe DefinedTags
+  , "defined-tags" :: Maybe (Map String (Map String String))
   , "description" :: String
-  --, "freeform-tags" :: Maybe FreeformTags
+  , "freeform-tags" :: Maybe (Map String String)
   , "id" :: String
   , "inactive-status" :: Maybe Int
   , "is-accessible" :: Maybe Boolean
@@ -655,7 +823,9 @@ type CompartmentDescriptionInt =
 
 type CompartmentDescription =
   { compartmentId :: String
+  , definedTags :: Maybe (Map String (Map String String))
   , description :: String
+  , freeformTags :: Maybe (Map String String)
   , id :: String
   , inactiveStatus :: Maybe Int
   , isAccessible :: Maybe Boolean
@@ -667,7 +837,9 @@ type CompartmentDescription =
 fromCompartmentInt :: CompartmentDescriptionInt -> F CompartmentDescription
 fromCompartmentInt
   { "compartment-id": compartmentId
+  , "defined-tags": definedTags
   , "description": description
+  . "freeform-tags" : freeformTags
   , "id": id
   , "inactive-status": inactiveStatus
   , "is-accessible": isAccessible
@@ -677,7 +849,9 @@ fromCompartmentInt
   } = do
   pure $
     { compartmentId
+    , definedTags
     , description
+    , freeformTags
     , id
     , inactiveStatus
     , isAccessible
