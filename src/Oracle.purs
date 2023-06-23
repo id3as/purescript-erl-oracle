@@ -1,5 +1,9 @@
 module Erl.Oracle
-  ( listCompartments
+  ( CompartmentId(..)
+  , ImageId(..)
+  , Shape(..)
+  , listCompartments
+  , listImages
   , listShapes
   ) where
 
@@ -33,27 +37,28 @@ import Simple.JSON (class ReadForeign, class WriteForeign, class WriteForeignKey
 import Text.Parsing.Parser (ParserT, fail, parseErrorMessage, runParser)
 import Unsafe.Coerce (unsafeCoerce)
 
-newtype InstanceId = InstanceId String
+newtype CompartmentId = CompartmentId String
 
-derive newtype instance Eq InstanceId
-derive newtype instance Ord InstanceId
-derive newtype instance ReadForeign InstanceId
-derive newtype instance WriteForeign InstanceId
-derive newtype instance WriteForeignKey InstanceId
-derive instance Newtype InstanceId _
-derive instance Generic InstanceId _
-instance Show InstanceId where
+derive newtype instance Eq CompartmentId
+derive newtype instance Ord CompartmentId
+derive newtype instance ReadForeign CompartmentId
+derive newtype instance WriteForeign CompartmentId
+derive newtype instance WriteForeignKey CompartmentId
+derive instance Newtype CompartmentId _
+derive instance Generic CompartmentId _
+instance Show CompartmentId where
   show = genericShow
 
-newtype InstanceType = InstanceType String
+newtype Shape = Shape String
 
-derive newtype instance Eq InstanceType
-derive newtype instance Ord InstanceType
-derive newtype instance ReadForeign InstanceType
-derive newtype instance WriteForeign InstanceType
-derive instance Newtype InstanceType _
-derive instance Generic InstanceType _
-instance Show InstanceType where
+derive newtype instance Eq Shape
+derive newtype instance Ord Shape
+derive newtype instance ReadForeign Shape
+derive newtype instance WriteForeign Shape
+derive newtype instance WriteForeignKey Shape
+derive instance Newtype Shape _
+derive instance Generic Shape _
+instance Show Shape where
   show = genericShow
 
 newtype ImageId = ImageId String
@@ -62,179 +67,20 @@ derive newtype instance Eq ImageId
 derive newtype instance Ord ImageId
 derive newtype instance ReadForeign ImageId
 derive newtype instance WriteForeign ImageId
+derive newtype instance WriteForeignKey ImageId
 derive instance Newtype ImageId _
 derive instance Generic ImageId _
 instance Show ImageId where
   show = genericShow
 
-newtype Region = Region String
-
-derive newtype instance Eq Region
-derive newtype instance Ord Region
-derive newtype instance ReadForeign Region
-derive newtype instance WriteForeign Region
-derive newtype instance WriteForeignKey Region
-derive instance Newtype Region _
-derive instance Generic Region _
-instance Show Region where
-  show = genericShow
-
-newtype Profile = Profile String
-
-derive newtype instance Eq Profile
-derive newtype instance Ord Profile
-derive newtype instance ReadForeign Profile
-derive newtype instance WriteForeign Profile
-derive instance Newtype Profile _
-derive instance Generic Profile _
-instance Show Profile where
-  show = genericShow
-
-newtype SecurityGroupId = SecurityGroupId String
-
-derive newtype instance Eq SecurityGroupId
-derive newtype instance Ord SecurityGroupId
-derive newtype instance ReadForeign SecurityGroupId
-derive newtype instance WriteForeign SecurityGroupId
-derive instance Newtype SecurityGroupId _
-derive instance Generic SecurityGroupId _
-instance Show SecurityGroupId where
-  show = genericShow
-
-newtype SubnetId = SubnetId String
-
-derive newtype instance Eq SubnetId
-derive newtype instance Ord SubnetId
-derive newtype instance ReadForeign SubnetId
-derive newtype instance WriteForeign SubnetId
-derive instance Newtype SubnetId _
-derive instance Generic SubnetId _
-instance Show SubnetId where
-  show = genericShow
-
-newtype KeyName = KeyName String
-
-derive newtype instance Eq KeyName
-derive newtype instance Ord KeyName
-derive newtype instance ReadForeign KeyName
-derive newtype instance WriteForeign KeyName
-derive instance Newtype KeyName _
-derive instance Generic KeyName _
-instance Show KeyName where
-  show = genericShow
-
-newtype ClientToken = ClientToken String
-
-derive newtype instance Eq ClientToken
-derive newtype instance Ord ClientToken
-derive newtype instance ReadForeign ClientToken
-derive newtype instance WriteForeign ClientToken
-derive instance Newtype ClientToken _
-derive instance Generic ClientToken _
-instance Show ClientToken where
-  show = genericShow
-
-newtype UserData = UserData String
-
-derive newtype instance Eq UserData
-derive newtype instance Ord UserData
-derive newtype instance ReadForeign UserData
-derive newtype instance WriteForeign UserData
-derive instance Newtype UserData _
-derive instance Generic UserData _
-instance Show UserData where
-  show = genericShow
-
-type RunningInstance =
-  { publicDnsName :: Maybe Hostname
-  , privateDnsName :: Hostname
-  , privateIpAddress :: IpAddress
-  }
-
-data InstanceState
-  = Pending
-  | Running RunningInstance
-  | ShuttingDown
-  | Terminated
-  | Stopping
-  | Stopped
-
-derive instance Eq InstanceState
-
-instance WriteForeign InstanceState where
-  writeImpl s =
-    let
-      instanceData = case s of
-        Running i -> Just i
-        _ -> Nothing
-      state = case s of
-        Pending -> "pending"
-        Running _ -> "running"
-        ShuttingDown -> "shutting-down"
-        Terminated -> "terminated"
-        Stopping -> "stopping"
-        Stopped -> "stopped"
-    in
-      writeImpl { state, instanceData }
-
-type InstanceDescription =
-  { instanceId :: InstanceId
-  , instanceType :: InstanceType
-  , imageId :: ImageId
-  , tags :: Map String String
-  , launchTime :: DateTime
-  , state :: InstanceState
-  , clientToken :: Maybe ClientToken
-  }
-
-data OptInStatus
-  = OptInNotRequired
-  | OptedIn
-  | NotOptedIn
-
-derive instance Generic OptInStatus _
-instance WriteForeign OptInStatus where
-  writeImpl = genericEnumWriteForeign
-
-instance ReadForeign OptInStatus where
-  readImpl = genericEnumReadForeign
-
-type RegionDescription =
-  { regionName :: Region
-  , endpoint :: String
-  , optInStatus :: OptInStatus
-  }
-
-type TagInt =
-  { "Key" :: String
-  , "Value" :: String
-  }
-
-tagIntsToTags :: List TagInt -> Map String String
-tagIntsToTags = foldl insertTag Map.empty
-  where
-  insertTag acc { "Key": key, "Value": value } = Map.insert key value acc
-
-tagsToTagInts :: Map String String -> List TagInt
-tagsToTagInts tags = (\(Tuple key value) -> { "Key": key, "Value": value }) <$> Map.toUnfoldable tags
-
-newtype DateTimeInt = DateTimeInt DateTime
-
-instance readForeignDateTimeInt :: ReadForeign DateTimeInt where
-  readImpl =
-    readString >=> parseFDT
-    where
-    parseFDT s =
-      except
-        $ bimap (singleton <<< ForeignError <<< parseErrorMessage) DateTimeInt (runParser s parseDateTime)
-
-parseDateTime :: forall m. Monad m => ParserT String m DateTime
-parseDateTime = parseFullDateTime >>= (\full -> maybe (fail "Invalid datetime offset") (pure) $ toUTC full)
-
 type BaseRequest a =
-  { compartment :: Maybe String
+  { compartment :: Maybe CompartmentId
   | a
   }
+
+type ListImageShapeCompatibilityEntries = BaseRequest
+  ( imageId :: ImageId
+  )
 
 type ListImagesRequest = BaseRequest ()
 
@@ -301,11 +147,11 @@ type ImageDescriptionInt =
   { "agent-features" :: Maybe InstanceAgentFeaturesInt
   , "base-image-id" :: Maybe String
   , "billable-size-in-gbs" :: Maybe Int
-  , "compartment-id" :: String
+  , "compartment-id" :: Maybe String
   , "create-image-allowed" :: Boolean
-  --, "defined-tags" :: Maybe (List (Tuple String String))
+  , "defined-tags" :: Maybe (Map String (Map String String))
   , "display-name" :: Maybe String
-  --, "freeform-tags" :: Maybe (List (Tuple String String))
+  , "freeform-tags" :: Maybe (Map String String)
   , "id" :: String
   , "launch-mode" :: Maybe String
   , "launch-options" :: Maybe LaunchOptionsInt
@@ -321,12 +167,12 @@ type ImageDescription =
   { agentFeatures :: Maybe InstanceAgentFeatures
   , baseImageId :: Maybe String
   , billableSizeInGbs :: Maybe Int
-  , compartmentId :: String
+  , compartmentId :: Maybe CompartmentId
   , createImageAllowed :: Boolean
-  -- , definedTags :: Maybe (List (Tuple String String))
+  , definedTags :: Maybe (Map String (Map String String))
   , displayName :: Maybe String
-  --, freeformTags :: Maybe (List (Tuple String String))
-  , id :: String
+  , freeformTags :: Maybe (Map String String)
+  , id :: ImageId
   , launchMode :: Maybe String
   , launchOptions :: Maybe LaunchOptions
   , lifecycleState :: String
@@ -345,9 +191,9 @@ fromImageDescriptionInt
   , "billable-size-in-gbs": billableSizeInGbs
   , "compartment-id": compartmentId
   , "create-image-allowed": createImageAllowed
-  --, "defined-tags": definedTags
+  , "defined-tags": definedTags
   , "display-name": displayName
-  --, "freeform-tags": freeformTags
+  , "freeform-tags": freeformTags
   , "id": id
   , "launch-mode": launchMode
   , "launch-options": launchOptionsInt
@@ -364,12 +210,12 @@ fromImageDescriptionInt
     { agentFeatures
     , baseImageId
     , billableSizeInGbs
-    , compartmentId
+    , compartmentId: maybe Nothing (\c -> Just $ CompartmentId c) compartmentId
     , createImageAllowed
-    --, definedTags
+    , definedTags
     , displayName
-    --, freeformTags
-    , id
+    , freeformTags
+    , id: ImageId id
     , launchMode
     , launchOptions
     , lifecycleState
@@ -711,7 +557,7 @@ type ShapeDescription =
   , rdmaPorts :: Maybe Int
   , recommendedAlternatives :: Maybe (List AlternativeObject)
   , resizeCompatibleShapes :: Maybe (List String)
-  , shape :: String
+  , shape :: Shape
   }
 
 fromShapesDescriptionInt :: ShapeDescriptionInt -> F ShapeDescription
@@ -720,7 +566,7 @@ fromShapesDescriptionInt
   , "baseline-ocpu-utilizations": baselineOcpuUtilizations
   , "billing-type": billingType
   , "defined-tags": definedTags
-  , "freeform-tags" : freeformTags
+  , "freeform-tags": freeformTags
   , "gpu-description": gpuDescription
   , "gpus": gpus
   , "is-billed-for-stopped-instance": isBilledForStoppedInstance
@@ -759,8 +605,8 @@ fromShapesDescriptionInt
     { availabilityDomain
     , baselineOcpuUtilizations
     , billingType
-    , definedTags,
-    , freeformTags,
+    , definedTags
+    , freeformTags
     , gpuDescription
     , gpus
     , isBilledForStoppedInstance
@@ -787,7 +633,7 @@ fromShapesDescriptionInt
     , rdmaPorts
     , recommendedAlternatives
     , resizeCompatibleShapes
-    , shape
+    , shape: Shape shape
     }
 
 type ShapeDescriptionsInt =
@@ -822,7 +668,7 @@ type CompartmentDescriptionInt =
   }
 
 type CompartmentDescription =
-  { compartmentId :: String
+  { compartmentId :: CompartmentId
   , definedTags :: Maybe (Map String (Map String String))
   , description :: String
   , freeformTags :: Maybe (Map String String)
@@ -839,7 +685,7 @@ fromCompartmentInt
   { "compartment-id": compartmentId
   , "defined-tags": definedTags
   , "description": description
-  . "freeform-tags" : freeformTags
+  , "freeform-tags": freeformTags
   , "id": id
   , "inactive-status": inactiveStatus
   , "is-accessible": isAccessible
@@ -848,7 +694,7 @@ fromCompartmentInt
   , "time-created": timeCreated
   } = do
   pure $
-    { compartmentId
+    { compartmentId: CompartmentId compartmentId
     , definedTags
     , description
     , freeformTags
@@ -881,7 +727,7 @@ ociCliBase { compartment } command = do
   "oci "
     <> command
     <> " --output json --all "
-    <> (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> compartment)
+    <> (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
 
 runOciCli :: String -> Effect (F String)
 runOciCli cmd = do
