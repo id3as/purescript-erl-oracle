@@ -3,6 +3,7 @@ module Erl.Oracle
   , ImageId(..)
   , Shape(..)
   , listCompartments
+  , listCompatibleShapes
   , listImages
   , listShapes
   ) where
@@ -74,15 +75,95 @@ instance Show ImageId where
   show = genericShow
 
 type BaseRequest a =
-  { compartment :: Maybe CompartmentId
+  {
   | a
   }
 
-type ListImageShapeCompatibilityEntries = BaseRequest
+type ListImageShapeCompatibilityRequest = BaseRequest
   ( imageId :: ImageId
   )
 
-type ListImagesRequest = BaseRequest ()
+type ImageMemoryConstraintsInt =
+  { "max-in-gbs" :: Maybe Int
+  , "min-in-gbs" :: Maybe Int
+  }
+
+type ImageMemoryConstraints =
+  { maxInGbs :: Maybe Int
+  , minInGbs :: Maybe Int
+  }
+
+fromImageMemoryConstraintsInt :: Maybe ImageMemoryConstraintsInt -> F (Maybe ImageMemoryConstraints)
+fromImageMemoryConstraintsInt constraints =
+  case constraints of
+    Just { "max-in-gbs": maxInGbs, "min-in-gbs": minInGbs } ->
+      pure $ Just { maxInGbs, minInGbs }
+    Nothing -> pure Nothing
+
+type ImageOcpuConstraintsInt =
+  { "max" :: Maybe Int
+  , "min" :: Maybe Int
+  }
+
+type ImageOcpuConstraints =
+  { max :: Maybe Int
+  , min :: Maybe Int
+  }
+
+fromImageOcpuConstraintsInt :: Maybe ImageOcpuConstraintsInt -> F (Maybe ImageOcpuConstraints)
+fromImageOcpuConstraintsInt constraints =
+  case constraints of
+    Just { "max": max, "min": min } ->
+      pure $ Just { max, min }
+    Nothing -> pure Nothing
+
+type ImageShapeCompatibilityInt =
+  { "image-id" :: String
+  , "memory-constraints" :: Maybe ImageMemoryConstraintsInt
+  , "ocpu-constraints" :: Maybe ImageOcpuConstraintsInt
+  , "shape" :: String
+  }
+
+type ImageShapeCompatibility =
+  { imageId :: ImageId
+  , memoryConstraints :: Maybe ImageMemoryConstraints
+  , ocpuConstraints :: Maybe ImageOcpuConstraints
+  , shape :: Shape
+  }
+
+fromImageShapeCompatibilityInt :: ImageShapeCompatibilityInt -> F ImageShapeCompatibility
+fromImageShapeCompatibilityInt
+  { "image-id": imageId
+  , "memory-constraints": memoryConstraintsInt
+  , "ocpu-constraints": ocpuConstraintsInt
+  , "shape": shape
+  } = ado
+  memoryConstraints <- fromImageMemoryConstraintsInt memoryConstraintsInt
+  ocpuConstraints <- fromImageOcpuConstraintsInt ocpuConstraintsInt
+  in
+    { imageId: ImageId imageId
+    , memoryConstraints
+    , ocpuConstraints
+    , shape: Shape shape
+    }
+
+type ImageShapeCompatibilityResponse =
+  { "data" :: List ImageShapeCompatibilityInt
+  }
+
+fromImageShapeCompatibilityResponse :: ImageShapeCompatibilityResponse -> F (List ImageShapeCompatibility)
+fromImageShapeCompatibilityResponse { "data": entries } = ado
+  shapes <- traverse fromImageShapeCompatibilityInt entries
+  in shapes
+
+listCompatibleShapes :: ListImageShapeCompatibilityRequest -> Effect (Either MultipleErrors (List ImageShapeCompatibility))
+listCompatibleShapes req@{ imageId } = do
+  let
+    cli = ociCliBase req $ "compute image-shape-compatibility-entry list --image-id " <> unwrap imageId
+  outputJson <- runOciCli cli
+  pure $ runExcept $ fromImageShapeCompatibilityResponse =<< readJSON' =<< outputJson
+
+type ListImagesRequest = BaseRequest (compartment :: Maybe CompartmentId)
 
 type InstanceAgentFeaturesInt =
   { "is-management-supported" :: Maybe Boolean -- unused
@@ -236,13 +317,14 @@ fromImagesResponseInt { "data": shapeData } = ado
   in shapes
 
 listImages :: ListImagesRequest -> Effect (Either MultipleErrors (List ImageDescription))
-listImages req = do
+listImages req@{ compartment } = do
   let
-    cli = ociCliBase req "compute image list"
+    cli = ociCliBase req "compute image list " <>
+      (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromImagesResponseInt =<< readJSON' =<< outputJson
 
-type ListShapesRequest = BaseRequest ()
+type ListShapesRequest = BaseRequest (compartment :: Maybe CompartmentId)
 
 type MaxVnicAttachmentOptionsInt =
   { "default-per-ocpu" :: Maybe Number
@@ -646,13 +728,14 @@ fromShapesResponseInt { "data": shapeData } = ado
   in shapes
 
 listShapes :: ListShapesRequest -> Effect (Either MultipleErrors (List ShapeDescription))
-listShapes req = do
+listShapes req@{ compartment } = do
   let
-    cli = ociCliBase req "compute shape list"
+    cli = ociCliBase req "compute shape list" <>
+      (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromShapesResponseInt =<< readJSON' =<< outputJson
 
-type ListCompartmentsRequest = BaseRequest ()
+type ListCompartmentsRequest = BaseRequest (compartment :: Maybe CompartmentId)
 
 type CompartmentDescriptionInt =
   { "compartment-id" :: String
@@ -716,18 +799,19 @@ fromCompartmentResponseInt { "data": compartmentData } = ado
   in compartments
 
 listCompartments :: ListCompartmentsRequest -> Effect (Either MultipleErrors (List CompartmentDescription))
-listCompartments req = do
+listCompartments req@{ compartment } = do
   let
-    cli = ociCliBase req "iam compartment list"
+    cli = ociCliBase req "iam compartment list " <>
+      (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
+
   outputJson <- runOciCli cli
   pure $ runExcept $ fromCompartmentResponseInt =<< readJSON' =<< outputJson
 
 ociCliBase :: forall t. BaseRequest t -> String -> String
-ociCliBase { compartment } command = do
+ociCliBase {} command = do
   "oci "
     <> command
     <> " --output json --all "
-    <> (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
 
 runOciCli :: String -> Effect (F String)
 runOciCli cmd = do

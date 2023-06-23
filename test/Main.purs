@@ -12,7 +12,7 @@ import Erl.Atom (atom)
 import Erl.Data.List (List)
 import Erl.Data.List as List
 import Erl.Kernel.Application as Application
-import Erl.Oracle (CompartmentId(..), listCompartments, listImages, listShapes)
+import Erl.Oracle (CompartmentId(..), ImageId(..), listCompartments, listCompatibleShapes, listImages, listShapes)
 import Erl.Process (unsafeRunProcessM)
 import Erl.Test.EUnit (TestF, TestSet, collectTests, suite, test)
 import Test.Assert (assertEqual, assertTrue')
@@ -57,6 +57,18 @@ ociTests = do
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "At least 1 image offerings" $ (length actualList) >= 1
+              Left _ -> do
+                liftEffect $ assertEqual { expected: Right List.nil, actual }
+  suite "list compatible shapes" do
+    test "Can parse response" do
+      void $ Application.ensureAllStarted $ atom "erlexec"
+      unsafeRunProcessM
+        $ do
+            -- Canonical-Ubuntu-22.04-aarch64-2023.05.19-0
+            actual <- liftEffect $ listCompatibleShapes { imageId: ImageId "ocid1.image.oc1.uk-london-1.aaaaaaaayc2h4cb5lcvcjh3dtm7m6mqkmtkz2rbz4vrur27gqzniw2raxevq" }
+            case actual of
+              Right actualList -> do
+                liftEffect $ assertTrue' "At least 1 compatible shape" $ (length actualList) >= 1
               Left _ -> do
                 liftEffect $ assertEqual { expected: Right List.nil, actual }
 
