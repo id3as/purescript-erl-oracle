@@ -1,9 +1,7 @@
 module Erl.Oracle
-  ( AvailabilityDomainId(..)
-  , CompartmentId(..)
-  , ImageId(..)
-  , Shape(..)
+  ( fromAvailabilityDomainInt
   , listAvailabilityDomains
+  , listCapacityReservations
   , listCompartments
   , listCompatibleShapes
   , listImages
@@ -22,7 +20,7 @@ import Data.Generic.Rep (class Generic)
 import Data.Int (floor)
 import Data.List.NonEmpty (singleton)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Newtype (class Newtype, unwrap)
+import Data.Newtype (class Newtype, overF, unwrap)
 import Data.Show.Generic (genericShow)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -34,72 +32,669 @@ import Erl.Data.Map (Map)
 import Erl.Data.Map as Map
 import Erl.Json (genericTaggedReadForeign, genericTaggedWriteForeign, genericEnumReadForeign, genericEnumWriteForeign)
 import Erl.Kernel.Inet (Hostname, IpAddress, parseIpAddress)
+import Erl.Oracle.CapactityReservationLifecycleState (CapactityReservationLifecycleState)
+import Erl.Oracle.CompartmentTypes (CompartmentLifecycleState)
+import Erl.Oracle.ImageTypes (ImageLifecycleState)
+import Erl.Oracle.InstanceLifecycleTypes (InstanceLifecycleState)
+import Erl.Oracle.Types (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId(..), DedicatedVmHostId(..), FaultDomainId(..), HpcIslandId(..), ImageId(..), InstanceId(..), KmsKeyId(..), NetworkBlockId(..), Shape(..))
 import Foreign (F, ForeignError(..), MultipleErrors, readString, unsafeFromForeign)
 import Partial.Unsafe (unsafeCrashWith)
 import Simple.JSON (class ReadForeign, class WriteForeign, class WriteForeignKey, E, read', readJSON', writeImpl, writeJSON)
 import Text.Parsing.Parser (ParserT, fail, parseErrorMessage, runParser)
 import Unsafe.Coerce (unsafeCoerce)
 
-newtype CompartmentId = CompartmentId String
-
-derive newtype instance Eq CompartmentId
-derive newtype instance Ord CompartmentId
-derive newtype instance ReadForeign CompartmentId
-derive newtype instance WriteForeign CompartmentId
-derive newtype instance WriteForeignKey CompartmentId
-derive instance Newtype CompartmentId _
-derive instance Generic CompartmentId _
-instance Show CompartmentId where
-  show = genericShow
-
-newtype Shape = Shape String
-
-derive newtype instance Eq Shape
-derive newtype instance Ord Shape
-derive newtype instance ReadForeign Shape
-derive newtype instance WriteForeign Shape
-derive newtype instance WriteForeignKey Shape
-derive instance Newtype Shape _
-derive instance Generic Shape _
-instance Show Shape where
-  show = genericShow
-
-newtype ImageId = ImageId String
-
-derive newtype instance Eq ImageId
-derive newtype instance Ord ImageId
-derive newtype instance ReadForeign ImageId
-derive newtype instance WriteForeign ImageId
-derive newtype instance WriteForeignKey ImageId
-derive instance Newtype ImageId _
-derive instance Generic ImageId _
-instance Show ImageId where
-  show = genericShow
-
-newtype AvailabilityDomainId = AvailabilityDomainId String
-
-derive newtype instance Eq AvailabilityDomainId
-derive newtype instance Ord AvailabilityDomainId
-derive newtype instance ReadForeign AvailabilityDomainId
-derive newtype instance WriteForeign AvailabilityDomainId
-derive newtype instance WriteForeignKey AvailabilityDomainId
-derive instance Newtype AvailabilityDomainId _
-derive instance Generic AvailabilityDomainId _
-instance Show AvailabilityDomainId where
-  show = genericShow
-
 type BaseRequest a =
   {
   | a
   }
 
--- type ListInstancesRequest = BaseRequest
---   ( availabliltyDomain :: Maybe AvailabilityDomain
---   , capacityReservationId :: Maybe CapacityReservationId
---   , computeClusterId :: Maybe ComputeClusterId
---   , displayName :: Maybe String
---   , lifecycleState :: Maybe LifecycleState
---   )
+type InstanceAgentPluginConfigDetailsInt =
+  { "desired-state" :: String
+  , "name" :: String
+  }
+
+type InstanceAgentPluginConfigDetails =
+  { desiredState :: String
+  , name :: String
+  }
+
+fromInstanceAgentPluginConfigDetailInt :: InstanceAgentPluginConfigDetailsInt -> F InstanceAgentPluginConfigDetails
+fromInstanceAgentPluginConfigDetailInt
+  { "desired-state": desiredState
+  , "name": name
+  } = do
+  pure $
+    { desiredState
+    , name
+    }
+
+fromInstanceAgentPluginConfigDetailsInt :: Maybe (List InstanceAgentPluginConfigDetailsInt) -> F (Maybe (List InstanceAgentPluginConfigDetails))
+fromInstanceAgentPluginConfigDetailsInt configs =
+  case configs of
+    Just configs' -> ado
+      pluginConfigs <- traverse fromInstanceAgentPluginConfigDetailInt configs'
+      in Just pluginConfigs
+    Nothing -> pure $ Nothing
+
+type InstanceAgentConfigInt =
+  { "are-all-plugins-disabled" :: Maybe Boolean
+  , "is-management-disabled" :: Maybe Boolean
+  , "is-monitoring-disabled" :: Maybe Boolean
+  , "plugins-config" :: Maybe (List InstanceAgentPluginConfigDetailsInt)
+  }
+
+type InstanceAgentConfig =
+  { areAllPluginsDisabled :: Maybe Boolean
+  , isManagementDisabled :: Maybe Boolean
+  , isMonitoringDisabled :: Maybe Boolean
+  , pluginsConfig :: Maybe (List InstanceAgentPluginConfigDetails)
+  }
+
+fromInstanceAgentConfigInt :: Maybe InstanceAgentConfigInt -> F (Maybe InstanceAgentConfig)
+fromInstanceAgentConfigInt config =
+  case config of
+    Just
+      { "are-all-plugins-disabled": areAllPluginsDisabled
+      , "is-management-disabled": isManagementDisabled
+      , "is-monitoring-disabled": isMonitoringDisabled
+      , "plugins-config": pluginsConfigInt
+      } -> do
+      pluginsConfig <- fromInstanceAgentPluginConfigDetailsInt pluginsConfigInt
+      pure $
+        Just
+          { areAllPluginsDisabled
+          , isManagementDisabled
+          , isMonitoringDisabled
+          , pluginsConfig
+          }
+    Nothing -> pure Nothing
+
+type InstanceAvailabilityConfigInt =
+  { "is-live-migration-preferred" :: Maybe Boolean
+  , "recovery-action" :: Maybe String
+  }
+
+type InstanceAvailabilityConfig =
+  { isLiveMigrationPreferred :: Maybe Boolean
+  , recoveryAction :: Maybe String
+  }
+
+fromInstanceAvailabilityConfigInt :: Maybe InstanceAvailabilityConfigInt -> F (Maybe InstanceAvailabilityConfig)
+fromInstanceAvailabilityConfigInt config =
+  case config of
+    Just
+      { "is-live-migration-preferred": isLiveMigrationPreferred
+      , "recovery-action": recoveryAction
+      } -> do
+      pure $ Just
+        { isLiveMigrationPreferred
+        , recoveryAction
+        }
+    Nothing -> pure Nothing
+
+type InstanceOptionsInt =
+  { "are-legacy-lmds-endpoints-disabled" :: Maybe Boolean
+  }
+
+type InstanceOptions =
+  { areLegacyLmdsEndpointsDisabled :: Maybe Boolean
+  }
+
+fromInstanceOptionsInt :: Maybe InstanceOptionsInt -> F (Maybe InstanceOptions)
+fromInstanceOptionsInt opts =
+  case opts of
+    Just { "are-legacy-lmds-endpoints-disabled": areLegacyLmdsEndpointsDisabled } ->
+      do pure $ Just { areLegacyLmdsEndpointsDisabled }
+    Nothing -> pure Nothing
+
+type PreemptionActionInt =
+  { "type" :: String
+  }
+
+type PreemptionAction =
+  { type :: String
+  }
+
+fromPreemptionActionInt :: PreemptionActionInt -> F PreemptionAction
+fromPreemptionActionInt { "type": actiontype } = do pure { type: actiontype }
+
+type PreemptibleInstanceConfigInt =
+  { "preemption-action" :: PreemptionActionInt
+  }
+
+type PreemptibleInstanceConfig =
+  { preemptionAction :: PreemptionAction
+  }
+
+fromPreemptibleInstanceConfigInt :: Maybe PreemptibleInstanceConfigInt -> F (Maybe PreemptibleInstanceConfig)
+fromPreemptibleInstanceConfigInt config =
+  case config of
+    Just { "preemption-action": preemptionAction } -> do
+      action <- fromPreemptionActionInt preemptionAction
+      pure $ Just { preemptionAction: action }
+    Nothing -> pure $ Nothing
+
+type InstanceShapeConfigInt =
+  { "baseline-ocpu-utilization" :: Maybe String
+  , "gpu-description" :: Maybe String
+  , "gpus" :: Maybe Int
+  , "local-disk-description" :: Maybe String
+  , "local-disks" :: Maybe Int
+  , "local-disk-size-in-gbs" :: Maybe Number
+  , "max-vnic-attachments" :: Maybe Int
+  , "memory-in-gbs" :: Maybe Number
+  , "networking-bandwidth-in-gbps" :: Maybe Number
+  , "ocpus" :: Maybe Number
+  , "processor-description" :: Maybe String
+  }
+
+type InstanceShapeConfig =
+  { baselineOcpuUtilization :: Maybe String
+  , gpuDescription :: Maybe String
+  , gpus :: Maybe Int
+  , localDiskDescription :: Maybe String
+  , localDisks :: Maybe Int
+  , localDiskSizeInGbs :: Maybe Number
+  , maxVnicAttachments :: Maybe Int
+  , memoryInGbs :: Maybe Number
+  , networkingBandwidthInGbps :: Maybe Number
+  , ocpus :: Maybe Number
+  , processorDescription :: Maybe String
+  }
+
+fromInstanceShapeConfigInt :: Maybe InstanceShapeConfigInt -> F (Maybe InstanceShapeConfig)
+fromInstanceShapeConfigInt config =
+  case config of
+    Just
+      { "baseline-ocpu-utilization": baselineOcpuUtilization
+      , "gpu-description": gpuDescription
+      , "gpus": gpus
+      , "local-disk-description": localDiskDescription
+      , "local-disks": localDisks
+      , "local-disk-size-in-gbs": localDiskSizeInGbs
+      , "max-vnic-attachments": maxVnicAttachments
+      , "memory-in-gbs": memoryInGbs
+      , "networking-bandwidth-in-gbps": networkingBandwidthInGbps
+      , "ocpus": ocpus
+      , "processor-description": processorDescription
+      } ->
+      do
+        pure $ Just
+          { baselineOcpuUtilization
+          , gpuDescription
+          , gpus
+          , localDiskDescription
+          , localDisks
+          , localDiskSizeInGbs
+          , maxVnicAttachments
+          , memoryInGbs
+          , networkingBandwidthInGbps
+          , ocpus
+          , processorDescription
+          }
+    Nothing -> pure Nothing
+
+type BootVolumeDetailsInt =
+  { "source-type" :: String
+  , "boot-volume-id" :: String
+  }
+
+type BootVolumeDetails =
+  { sourceType :: String
+  , bootVolumeId :: String
+  }
+
+fromBootVolumeDetailsInt :: BootVolumeDetailsInt -> F BootVolumeDetails
+fromBootVolumeDetailsInt
+  { "source-type": sourceType
+  , "boot-volume-id": bootVolumeId
+  } = do
+  pure
+    { sourceType
+    , bootVolumeId
+    }
+
+type SourceViaImageDetailsInt =
+  { "source-type" :: String
+  , "boot-volume-size-in-gbps" :: Maybe Int
+  , "boot-volume-vpus-per-gb" :: Maybe Int
+  , "image-id" :: String
+  , "kms-key-id" :: Maybe String
+  }
+
+type SourceViaImageDetails =
+  { sourceType :: String
+  , bootVolumeSizeInGbps :: Maybe Int
+  , bootVolumeVpusPerGb :: Maybe Int
+  , imageId :: ImageId
+  , kmsKeyId :: Maybe KmsKeyId
+  }
+
+fromSourceViaImageDetailsInt :: SourceViaImageDetailsInt -> F SourceViaImageDetails
+fromSourceViaImageDetailsInt
+  { "source-type": sourceType
+  , "boot-volume-size-in-gbps": bootVolumeSizeInGbps
+  , "boot-volume-vpus-per-gb": bootVolumeVpusPerGb
+  , "image-id": imageId
+  , "kms-key-id": kmsKeyId
+  } = do
+  pure
+    { sourceType
+    , bootVolumeSizeInGbps
+    , bootVolumeVpusPerGb
+    , imageId: ImageId imageId
+    , kmsKeyId: maybe Nothing (\t -> Just $ KmsKeyId t) kmsKeyId
+    }
+
+data InstanceSourceTypeInt
+  = BootVolumeInt BootVolumeDetailsInt
+  | ImageInt SourceViaImageDetailsInt
+
+-- derive instance Eq InstanceSourceTypeInt
+-- derive instance Generic InstanceSourceTypeInt _
+-- instance ReadForeign InstanceSourceTypeInt where
+--   readImpl f =
+--     case spy "instanceSourceType" unsafeFromForeign f of
+--       _ -> BootVolumeInt { "source-type": "Foo", "boot-volume-id": "12345" }
+
+data InstanceSourceType
+  = BootVolume BootVolumeDetails
+  | Image SourceViaImageDetails
+
+type InstanceSourceDetailsInt =
+  { "source-type" :: InstanceSourceTypeInt
+  }
+
+type InstanceSourceDetails =
+  { sourceType :: InstanceSourceType
+  }
+
+-- fromInstanceSourceType :: InstanceSourceTypeInt -> F InstanceSourceType
+-- fromInstanceSourceType sourceType = do
+--   pure $ case sourceType of
+--     BootVolumeInt t -> BootVolume $ fromBootVolumeDetailsInt t
+--     ImageInt t -> Image $ fromSourceViaImageDetailsInt t
+
+-- fromInstanceSourceDetailsInt :: Maybe InstanceSourceDetailsInt -> F (Maybe InstanceSourceDetails)
+-- fromInstanceSourceDetailsInt =
+--   case _ of
+--     Just
+--       { "source-type": sourceTypeInt
+--       } -> ado
+--       sourceType <- fromInstanceSourceType sourceTypeInt
+--       in
+--         Just
+--           { sourceType
+--           }
+--     Nothing -> pure $ Nothing
+
+type InstancePlatformConfigInt =
+  { "is-measured-boot-enabled" :: Maybe Boolean
+  , "is-secure-boot-enabled" :: Maybe Boolean
+  , "is-trusted-platform-enabled" :: Maybe Boolean
+  , "type" :: String
+  }
+
+type InstancePlatformConfig =
+  { isMeasuredBootEnabled :: Maybe Boolean
+  , isSecureBootEnabled :: Maybe Boolean
+  , isTrustedPlatformEnabled :: Maybe Boolean
+  , type :: String
+  }
+
+fromInstancePlatformConfigInt :: Maybe InstancePlatformConfigInt -> F (Maybe InstancePlatformConfig)
+fromInstancePlatformConfigInt config =
+  case config of
+    Just
+      { "is-measured-boot-enabled": isMeasuredBootEnabled
+      , "is-secure-boot-enabled": isSecureBootEnabled
+      , "is-trusted-platform-enabled": isTrustedPlatformEnabled
+      , "type": platformType
+      } -> pure $ Just
+      { isMeasuredBootEnabled
+      , isSecureBootEnabled
+      , isTrustedPlatformEnabled
+      , type: platformType
+      }
+    Nothing -> pure $ Nothing
+
+type InstanceDescriptionInt =
+  { "agent-config" :: Maybe InstanceAgentConfigInt
+  , "availability-config" :: Maybe InstanceAvailabilityConfigInt
+  , "availability-domain" :: String
+  , "capacity-reservation-id" :: Maybe String
+  , "compartment-id" :: String
+  , "dedicated-vm-host-id" :: Maybe String
+  , "defined-tags" :: Maybe (Map String (Map String String))
+  , "display-name" :: Maybe String
+  , "extended-metadata" :: Maybe (Map String String)
+  , "fault-domain" :: Maybe String
+  , "freeform-tags" :: Maybe (Map String String)
+  , "id" :: String
+  , "image-id" :: String
+  , "instance=options" :: Maybe InstanceOptionsInt
+  , "ipxe-script" :: Maybe String
+  , "launch-mode" :: Maybe String
+  , "launch-options" :: Maybe LaunchOptionsInt
+  , "lifecycle-state" :: InstanceLifecycleState
+  , "metadata" :: Maybe String
+  , "platform-config" :: Maybe InstancePlatformConfigInt
+  , "preemptible-instance-config" :: Maybe PreemptibleInstanceConfigInt
+  , "shape" :: String
+  , "shape-config" :: Maybe InstanceShapeConfigInt
+  --, "source-details" :: Maybe InstanceSourceDetailsInt
+  , "time-created" :: String
+  , "time-maintenance-reboot-due" :: Maybe String
+  }
+
+type InstanceDescription =
+  { agentConfig :: Maybe InstanceAgentConfig
+  , availabilityConfig :: Maybe InstanceAvailabilityConfig
+  , availabilityDomain :: AvailabilityDomainId
+  , capacityReservationId :: Maybe CapacityReservationId
+  , compartmentId :: CompartmentId
+  , dedicatedVmHostId :: Maybe DedicatedVmHostId
+  , definedTags :: Maybe (Map String (Map String String))
+  , displayName :: Maybe String
+  , extendedMetadata :: Maybe (Map String String)
+  , faultDomain :: Maybe String
+  , freeformTags :: Maybe (Map String String)
+  , id :: InstanceId
+  , imageId :: ImageId
+  , instanceOptions :: Maybe InstanceOptions
+  , ipxeScript :: Maybe String
+  , launchMode :: Maybe String
+  , launchOptions :: Maybe LaunchOptions
+  , lifecycleState :: InstanceLifecycleState
+  , metadata :: Maybe String
+  , platformConfig :: Maybe InstancePlatformConfig
+  , preemptibleInstanceConfig :: Maybe PreemptibleInstanceConfig
+  , shape :: Shape
+  , shapeConfig :: Maybe InstanceShapeConfig
+  --, sourceDetails :: Maybe InstanceSourceDetails
+  , timeCreated :: String
+  , timeMaintenanceRebootDue :: Maybe String
+  }
+
+fromListInstanceDescription :: InstanceDescriptionInt -> F InstanceDescription
+fromListInstanceDescription
+  { "agent-config": instanceAgentConfigInt
+  , "availability-config": instanceAvailabilityConfigInt
+  , "availability-domain": availabilityDomain
+  , "capacity-reservation-id": capacityReservation
+  , "compartment-id": compartment
+  , "dedicated-vm-host-id": dedicatedVmHost
+  , "defined-tags": definedTags
+  , "display-name": displayName
+  , "extended-metadata": extendedMetadata
+  , "fault-domain": faultDomain
+  , "freeform-tags": freeformTags
+  , "id": id
+  , "image-id": imageId
+  , "instance=options": instanceOptionsInt
+  , "ipxe-script": ipxeScript
+  , "launch-mode": launchMode
+  , "launch-options": launchOptionsInt
+  , "lifecycle-state": lifecycleState
+  , "metadata": metadata
+  , "platform-config": instancePlatformConfigInt
+  , "preemptible-instance-config": preemptibleInstanceConfigInt
+  , "shape": shape
+  , "shape-config": shapeConfigInt
+  --, "source-details": sourceDetailsInt
+  , "time-created": timeCreated
+  , "time-maintenance-reboot-due": timeMaintenanceRebootDue
+  } = ado
+  agentConfig <- fromInstanceAgentConfigInt instanceAgentConfigInt
+  availabilityConfig <- fromInstanceAvailabilityConfigInt instanceAvailabilityConfigInt
+  instanceOptions <- fromInstanceOptionsInt instanceOptionsInt
+  launchOptions <- fromLaunchOptionsInt launchOptionsInt
+  platformConfig <- fromInstancePlatformConfigInt instancePlatformConfigInt
+  preemptibleInstanceConfig <- fromPreemptibleInstanceConfigInt preemptibleInstanceConfigInt
+  shapeConfig <- fromInstanceShapeConfigInt shapeConfigInt
+  -- sourceDetails <- fromInstanceSourceDetailsInt sourceDetailsInt
+  in
+    { agentConfig
+    , availabilityConfig
+    , availabilityDomain: AvailabilityDomainId availabilityDomain
+    , capacityReservationId: maybe Nothing (\t -> Just $ CapacityReservationId t) capacityReservation
+    , compartmentId: CompartmentId compartment
+    , dedicatedVmHostId: maybe Nothing (\t -> Just $ DedicatedVmHostId t) dedicatedVmHost
+    , definedTags
+    , displayName
+    , extendedMetadata
+    , faultDomain
+    , freeformTags
+    , id: InstanceId id
+    , imageId: ImageId imageId
+    , instanceOptions
+    , ipxeScript
+    , launchMode
+    , launchOptions
+    , lifecycleState
+    , metadata
+    , platformConfig
+    , preemptibleInstanceConfig
+    , shape: Shape shape
+    , shapeConfig
+    --, sourceDetails: Nothing
+    , timeCreated
+    , timeMaintenanceRebootDue
+    }
+
+type ListInstancesRequest = BaseRequest
+  ( availabilityDomain :: Maybe AvailabilityDomainId
+  , capacityReservation :: Maybe CapacityReservationId
+  , computeCluster :: Maybe ComputeClusterId
+  , compartment :: CompartmentId
+  , displayName :: Maybe String
+  , lifecycleState :: Maybe InstanceLifecycleState
+  )
+
+type ListInstancesResponse =
+  { "data" :: List InstanceDescriptionInt
+  }
+
+fromListInstancesResponse :: ListInstancesResponse -> F (List InstanceDescription)
+fromListInstancesResponse { "data": entries } = ado
+  instances <- traverse fromListInstanceDescription entries
+  in instances
+
+listInstances :: ListInstancesRequest -> Effect (Either MultipleErrors (List InstanceDescription))
+listInstances req@{ compartment, availabilityDomain } = do
+  let
+    cli = ociCliBase req $ " compute capacity-reservation list"
+      <> (" --compartment-id " <> unwrap compartment)
+      <> (fromMaybe "" $ (\r -> " --availability-domain " <> r) <$> unwrap <$> availabilityDomain)
+  outputJson <- runOciCli cli
+  pure $ runExcept $ fromListInstancesResponse =<< readJSON' =<< outputJson
+
+-- Our oci-api doesn't support this yet?
+type ListComputeClusterRequest = BaseRequest
+  ( compartment :: CompartmentId
+  )
+
+type ListCapactityReservationRequest = BaseRequest
+  ( compartment :: Maybe CompartmentId
+  , availabilityDomain :: Maybe AvailabilityDomainId
+  )
+
+type ClusterConfigDetailsInt =
+  { "hpc-island-id" :: String
+  , "network-block-ids" :: Maybe (List String)
+  }
+
+type ClusterConfigDetails =
+  { hpcIslandId :: HpcIslandId
+  , networkBlockIds :: Maybe (List NetworkBlockId)
+  }
+
+fromClusterConfigDetailsInt :: Maybe ClusterConfigDetailsInt -> F (Maybe ClusterConfigDetails)
+fromClusterConfigDetailsInt details =
+  case details of
+    Just
+      { "hpc-island-id": hpcIslandId
+      , "network-block-ids": networkBlockIds
+      } ->
+      pure $ Just
+        { hpcIslandId: HpcIslandId hpcIslandId
+        , networkBlockIds: maybe Nothing (\list -> Just $ map (\t -> NetworkBlockId t) list) networkBlockIds
+        }
+    Nothing -> pure Nothing
+
+type InstanceReservationShapeDetailsInt =
+  { "memory-in-gbs" :: Maybe Number
+  , "ocpus" :: Maybe Number
+  }
+
+type InstanceReservationShapeDetails =
+  { memoryInGbs :: Maybe Number
+  , ocpus :: Maybe Number
+  }
+
+fromInstanceReservationShapeDetailsInt :: Maybe InstanceReservationShapeDetailsInt -> F (Maybe InstanceReservationShapeDetails)
+fromInstanceReservationShapeDetailsInt details =
+  case details of
+    Just
+      { "memory-in-gbs": memoryInGbs
+      , "ocpus": ocpus
+      } -> pure $ Just
+      { memoryInGbs
+      , ocpus
+      }
+    Nothing -> pure Nothing
+
+type InstanceReservationConfigInt =
+  { "cluster-config" :: Maybe ClusterConfigDetailsInt
+  , "fault-domain" :: Maybe String
+  , "instance-shape" :: String
+  , "instance-shape-config" :: Maybe InstanceReservationShapeDetailsInt
+  , "reserved-count" :: Int
+  , "used-count" :: Int
+  }
+
+type InstanceReservationConfig =
+  { clusterConfig :: Maybe ClusterConfigDetails
+  , faultDomain :: Maybe FaultDomainId
+  , instanceShape :: Shape
+  , instanceShapeConfig :: Maybe InstanceReservationShapeDetails
+  , reservedCount :: Int
+  , usedCount :: Int
+  }
+
+fromInstanceReservationConfigInt :: InstanceReservationConfigInt -> F InstanceReservationConfig
+fromInstanceReservationConfigInt
+  { "cluster-config": clusterConfigInt
+  , "fault-domain": faultDomain
+  , "instance-shape": instanceShape
+  , "instance-shape-config": instanceShapeConfigInt
+  , "reserved-count": reservedCount
+  , "used-count": usedCount
+  } = ado
+  clusterConfig <- fromClusterConfigDetailsInt clusterConfigInt
+  instanceShapeConfig <- fromInstanceReservationShapeDetailsInt instanceShapeConfigInt
+  in
+    { clusterConfig
+    , faultDomain: maybe Nothing (\t -> Just $ FaultDomainId t) faultDomain
+    , instanceShape: Shape instanceShape
+    , instanceShapeConfig
+    , reservedCount
+    , usedCount
+    }
+
+type CapacityReservationInt =
+  { "availability-domain" :: String
+  , "compartment-id" :: String
+  , "defined-tags" :: Maybe (Map String (Map String String))
+  , "display-name" :: Maybe String
+  , "freeform-tags" :: Maybe (Map String String)
+  , "id" :: String
+  , "instance-reservation-configs" :: Maybe (List InstanceReservationConfigInt)
+  , "is-default-reservation" :: Maybe Boolean
+  , "lifecycle-state" :: CapactityReservationLifecycleState
+  , "reserved-instance-count" :: Maybe Int
+  , "time-created" :: String
+  , "time-updated" :: Maybe String
+  , "used-instance-count" :: Maybe Int
+  }
+
+type CapacityReservation =
+  { availabilityDomain :: AvailabilityDomainId
+  , compartmentId :: CompartmentId
+  , definedTags :: Maybe (Map String (Map String String))
+  , displayName :: Maybe String
+  , freeformTags :: Maybe (Map String String)
+  , id :: CapacityReservationId
+  , instanceReservationConfigs :: Maybe (List InstanceReservationConfig)
+  , isDefaultReservation :: Maybe Boolean
+  , lifecycleState :: CapactityReservationLifecycleState
+  , reservedInstanceCount :: Maybe Int
+  , timeCreated :: String
+  , timeUpdated :: Maybe String
+  , usedInstanceCount :: Maybe Int
+  }
+
+fromInstanceReservationConfigsInt :: Maybe (List InstanceReservationConfigInt) -> F (Maybe (List InstanceReservationConfig))
+fromInstanceReservationConfigsInt configs =
+  case configs of
+    Just configs' -> ado
+      reservationConfigs <- traverse fromInstanceReservationConfigInt configs'
+      in Just reservationConfigs
+    Nothing -> pure $ Nothing
+
+fromCapactityReservationInt :: CapacityReservationInt -> F CapacityReservation
+fromCapactityReservationInt
+  { "availability-domain": availabilityDomain
+  , "compartment-id": compartmentId
+  , "defined-tags": definedTags
+  , "display-name": displayName
+  , "freeform-tags": freeformTags
+  , "id": id
+  , "instance-reservation-configs": instanceReservationConfigsInt
+  , "is-default-reservation": isDefaultReservation
+  , "lifecycle-state": lifecycleState
+  , "reserved-instance-count": reservedInstanceCount
+  , "time-created": timeCreated
+  , "time-updated": timeUpdated
+  , "used-instance-count": usedInstanceCount
+  } = ado
+  instanceReservationConfigs <- fromInstanceReservationConfigsInt instanceReservationConfigsInt
+  in
+    { availabilityDomain: AvailabilityDomainId availabilityDomain
+    , compartmentId: CompartmentId compartmentId
+    , definedTags
+    , displayName
+    , freeformTags
+    , id: CapacityReservationId id
+    , instanceReservationConfigs
+    , isDefaultReservation
+    , lifecycleState
+    , reservedInstanceCount
+    , timeCreated
+    , timeUpdated
+    , usedInstanceCount
+    }
+
+type CapactityReservationsResponse =
+  { "data" :: List CapacityReservationInt
+  }
+
+fromCapacityReservationResponse :: Maybe CapactityReservationsResponse -> F (List CapacityReservation)
+fromCapacityReservationResponse resp =
+  case resp of
+    Just { "data": entries } -> do
+      reservations <- traverse fromCapactityReservationInt $ spy "Entries" entries
+      pure $ spy "reservations" reservations
+    Nothing -> pure $ List.nil
+
+listCapacityReservations :: ListCapactityReservationRequest -> Effect (Either MultipleErrors (List CapacityReservation))
+listCapacityReservations req@{ compartment, availabilityDomain } = do
+  let
+    cli = ociCliBase req $ " compute capacity-reservation list"
+      <> (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
+      <> (fromMaybe "" $ (\r -> " --availability-domain " <> r) <$> unwrap <$> availabilityDomain)
+  outputJson <- runOciCli cli
+  pure $ runExcept $ fromCapacityReservationResponse =<< readJSON' =<< outputJson
 
 type ListAvailabilityDomainRequest = BaseRequest
   ( compartment :: Maybe CompartmentId
@@ -232,26 +827,6 @@ listCompatibleShapes req@{ imageId } = do
 
 type ListImagesRequest = BaseRequest (compartment :: Maybe CompartmentId)
 
-type InstanceAgentFeaturesInt =
-  { "is-management-supported" :: Maybe Boolean -- unused
-  , "is-monitoring-supproted" :: Maybe Boolean -- unused
-  }
-
-type InstanceAgentFeatures =
-  { isManagementSupported :: Maybe Boolean
-  , isMonitoringSupported :: Maybe Boolean
-  }
-
-fromInstanceAgentFeaturesInt :: Maybe InstanceAgentFeaturesInt -> F (Maybe InstanceAgentFeatures)
-fromInstanceAgentFeaturesInt features =
-  case features of
-    Just
-      { "is-management-supported": isManagementSupported
-      , "is-monitoring-supproted": isMonitoringSupported
-      } -> do
-      pure $ Just { isManagementSupported, isMonitoringSupported }
-    Nothing -> pure Nothing
-
 type LaunchOptionsInt =
   { "boot-volume-type" :: Maybe String
   , "firmware" :: Maybe String
@@ -269,6 +844,66 @@ type LaunchOptions =
   , networkType :: Maybe String
   , remoteDataVolumeType :: Maybe String
   }
+
+type InstanceAgentFeaturesInt =
+  { "is-management-supported" :: Maybe Boolean -- unused
+  , "is-monitoring-supproted" :: Maybe Boolean -- unused
+  }
+
+type InstanceAgentFeatures =
+  { isManagementSupported :: Maybe Boolean
+  , isMonitoringSupported :: Maybe Boolean
+  }
+
+type ImageDescriptionInt =
+  { "agent-features" :: Maybe InstanceAgentFeaturesInt
+  , "base-image-id" :: Maybe String
+  , "billable-size-in-gbs" :: Maybe Int
+  , "compartment-id" :: Maybe String
+  , "create-image-allowed" :: Boolean
+  , "defined-tags" :: Maybe (Map String (Map String String))
+  , "display-name" :: Maybe String
+  , "freeform-tags" :: Maybe (Map String String)
+  , "id" :: String
+  , "launch-mode" :: Maybe String
+  , "launch-options" :: Maybe LaunchOptionsInt
+  , "lifecycle-state" :: ImageLifecycleState
+  , "listing-type" :: Maybe String
+  , "operating-system" :: String
+  , "operating-system-version" :: String
+  , "size-in-mbs" :: Maybe Int
+  , "time-created" :: String
+  }
+
+type ImageDescription =
+  { agentFeatures :: Maybe InstanceAgentFeatures
+  , baseImageId :: Maybe String
+  , billableSizeInGbs :: Maybe Int
+  , compartmentId :: Maybe CompartmentId
+  , createImageAllowed :: Boolean
+  , definedTags :: Maybe (Map String (Map String String))
+  , displayName :: Maybe String
+  , freeformTags :: Maybe (Map String String)
+  , id :: ImageId
+  , launchMode :: Maybe String
+  , launchOptions :: Maybe LaunchOptions
+  , lifecycleState :: ImageLifecycleState
+  , listingType :: Maybe String
+  , operatingSystem :: String
+  , operatingSystemVersion :: String
+  , sizeInMbs :: Maybe Int
+  , timeCreated :: String
+  }
+
+fromInstanceAgentFeaturesInt :: Maybe InstanceAgentFeaturesInt -> F (Maybe InstanceAgentFeatures)
+fromInstanceAgentFeaturesInt features =
+  case features of
+    Just
+      { "is-management-supported": isManagementSupported
+      , "is-monitoring-supproted": isMonitoringSupported
+      } -> do
+      pure $ Just { isManagementSupported, isMonitoringSupported }
+    Nothing -> pure Nothing
 
 fromLaunchOptionsInt :: Maybe LaunchOptionsInt -> F (Maybe LaunchOptions)
 fromLaunchOptionsInt opts =
@@ -290,47 +925,6 @@ fromLaunchOptionsInt opts =
         , remoteDataVolumeType
         }
     Nothing -> pure Nothing
-
-type ImageDescriptionInt =
-  { "agent-features" :: Maybe InstanceAgentFeaturesInt
-  , "base-image-id" :: Maybe String
-  , "billable-size-in-gbs" :: Maybe Int
-  , "compartment-id" :: Maybe String
-  , "create-image-allowed" :: Boolean
-  , "defined-tags" :: Maybe (Map String (Map String String))
-  , "display-name" :: Maybe String
-  , "freeform-tags" :: Maybe (Map String String)
-  , "id" :: String
-  , "launch-mode" :: Maybe String
-  , "launch-options" :: Maybe LaunchOptionsInt
-  , "lifecycle-state" :: String
-  , "listing-type" :: Maybe String
-  , "operating-system" :: String
-  , "operating-system-version" :: String
-  , "size-in-mbs" :: Maybe Int
-  , "time-created" :: String
-  }
-
-type ImageDescription =
-  { agentFeatures :: Maybe InstanceAgentFeatures
-  , baseImageId :: Maybe String
-  , billableSizeInGbs :: Maybe Int
-  , compartmentId :: Maybe CompartmentId
-  , createImageAllowed :: Boolean
-  , definedTags :: Maybe (Map String (Map String String))
-  , displayName :: Maybe String
-  , freeformTags :: Maybe (Map String String)
-  , id :: ImageId
-  , launchMode :: Maybe String
-  , launchOptions :: Maybe LaunchOptions
-  , lifecycleState :: String
-  , listingType :: Maybe String
-  , operatingSystem :: String
-  , operatingSystemVersion :: String
-  , sizeInMbs :: Maybe Int
-  , timeCreated :: String
-
-  }
 
 fromImageDescriptionInt :: ImageDescriptionInt -> F ImageDescription
 fromImageDescriptionInt
@@ -812,7 +1406,7 @@ type CompartmentDescriptionInt =
   , "id" :: String
   , "inactive-status" :: Maybe Int
   , "is-accessible" :: Maybe Boolean
-  , "lifecycle-state" :: String
+  , "lifecycle-state" :: CompartmentLifecycleState
   , "name" :: String
   , "time-created" :: String
   }
@@ -825,7 +1419,7 @@ type CompartmentDescription =
   , id :: String
   , inactiveStatus :: Maybe Int
   , isAccessible :: Maybe Boolean
-  , lifecycleState :: String
+  , lifecycleState :: CompartmentLifecycleState
   , name :: String
   , timeCreated :: String
   }
