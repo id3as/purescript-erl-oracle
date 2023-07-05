@@ -32,6 +32,19 @@ workspace:
         - variant
       git: https://github.com/id3as/purescript-simple-json.git
       ref: 19b092b4bea82b5751169db81de53bd4addb3402
+    erl-file:
+      dependencies:
+        - arrays
+        - assert
+        - datetime
+        - datetime-parsing
+        - erl-kernel
+        - erl-process
+        - erl-test-eunit
+        - erl-test-eunit-discovery
+        - simple-json
+      git: https://github.com/id3as/purescript-erl-file.git
+      ref: 5a406ddb8502b35e9682a5786691a1969cd9966a
     erl-nativerefs:
       dependencies:
         - effect
@@ -131,6 +144,7 @@ package:
     - assert
     - datetime
     - datetime-parsing
+    - erl-file
     - erl-kernel
     - erl-process
     - erl-test-eunit

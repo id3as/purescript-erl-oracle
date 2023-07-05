@@ -5,7 +5,10 @@ import Prelude
 import Data.Generic.Rep (class Generic)
 import Data.Newtype (class Newtype)
 import Data.Show.Generic (genericShow)
-import Simple.JSON (class ReadForeign, class WriteForeign, class WriteForeignKey)
+import Erl.Data.Map (Map)
+import Foreign (unsafeFromForeign)
+import Partial.Unsafe (unsafeCrashWith)
+import Simple.JSON (class ReadForeign, class WriteForeign, class WriteForeignKey, write)
 
 newtype CompartmentId = CompartmentId String
 
@@ -150,3 +153,120 @@ derive instance Newtype KmsKeyId _
 derive instance Generic KmsKeyId _
 instance Show KmsKeyId where
   show = genericShow
+
+newtype SubnetId = SubnetId String
+
+derive newtype instance Eq SubnetId
+derive newtype instance Ord SubnetId
+derive newtype instance ReadForeign SubnetId
+derive newtype instance WriteForeign SubnetId
+derive newtype instance WriteForeignKey SubnetId
+derive instance Newtype SubnetId _
+derive instance Generic SubnetId _
+instance Show SubnetId where
+  show = genericShow
+
+newtype VlanId = VlanId String
+
+derive newtype instance Eq VlanId
+derive newtype instance Ord VlanId
+derive newtype instance ReadForeign VlanId
+derive newtype instance WriteForeign VlanId
+derive newtype instance WriteForeignKey VlanId
+derive instance Newtype VlanId _
+derive instance Generic VlanId _
+instance Show VlanId where
+  show = genericShow
+
+newtype VolumeId = VolumeId String
+
+derive newtype instance Eq VolumeId
+derive newtype instance Ord VolumeId
+derive newtype instance ReadForeign VolumeId
+derive newtype instance WriteForeign VolumeId
+derive newtype instance WriteForeignKey VolumeId
+derive instance Newtype VolumeId _
+derive instance Generic VolumeId _
+instance Show VolumeId where
+  show = genericShow
+
+newtype VcnId = VcnId String
+
+derive newtype instance Eq VcnId
+derive newtype instance Ord VcnId
+derive newtype instance ReadForeign VcnId
+derive newtype instance WriteForeign VcnId
+derive newtype instance WriteForeignKey VcnId
+derive instance Newtype VcnId _
+derive instance Generic VcnId _
+instance Show VcnId where
+  show = genericShow
+
+newtype DhcpOptionsId = DhcpOptionsId String
+
+derive newtype instance Eq DhcpOptionsId
+derive newtype instance Ord DhcpOptionsId
+derive newtype instance ReadForeign DhcpOptionsId
+derive newtype instance WriteForeign DhcpOptionsId
+derive newtype instance WriteForeignKey DhcpOptionsId
+derive instance Newtype DhcpOptionsId _
+derive instance Generic DhcpOptionsId _
+instance Show DhcpOptionsId where
+  show = genericShow
+
+newtype RouteTableId = RouteTableId String
+
+derive newtype instance Eq RouteTableId
+derive newtype instance Ord RouteTableId
+derive newtype instance ReadForeign RouteTableId
+derive newtype instance WriteForeign RouteTableId
+derive newtype instance WriteForeignKey RouteTableId
+derive instance Newtype RouteTableId _
+derive instance Generic RouteTableId _
+instance Show RouteTableId where
+  show = genericShow
+
+newtype SecurityListId = SecurityListId String
+
+derive newtype instance Eq SecurityListId
+derive newtype instance Ord SecurityListId
+derive newtype instance ReadForeign SecurityListId
+derive newtype instance WriteForeign SecurityListId
+derive newtype instance WriteForeignKey SecurityListId
+derive instance Newtype SecurityListId _
+derive instance Generic SecurityListId _
+instance Show SecurityListId where
+  show = genericShow
+
+data LaunchMode
+  = Native
+  | Emulated
+  | Paravirtualized
+  | Custom
+
+derive instance Eq LaunchMode
+derive instance Generic LaunchMode _
+instance ReadForeign LaunchMode where
+  readImpl f =
+    case unsafeFromForeign f of
+      "NATIVE" -> pure Native
+      "EMULATED" -> pure Emulated
+      "PARAVIRTUALIZED" -> pure Paravirtualized
+      "CUSTOM" -> pure Custom
+      somethingElse -> unsafeCrashWith $ "Unexpected LaunchMode " <> somethingElse
+
+instance WriteForeign LaunchMode where
+  writeImpl f =
+    case f of
+      Native -> write "NATIVE"
+      Emulated -> write "EMULATED"
+      Paravirtualized -> write "PARAVIRTUALIZED"
+      Custom -> write "CUSTOM"
+
+instance Show LaunchMode where
+  show = genericShow
+
+type DefinedTags = Map String (Map String String)
+type ExtendedMetadata = Map String (Map String String)
+type FreeformTags = Map String String
+type Metadata = Map String String
