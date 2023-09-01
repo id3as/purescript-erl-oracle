@@ -1,10 +1,5 @@
 module Erl.Oracle.CapacityReservation
-  ( CapacityReservation
-  , CapactityReservationLifecycleState(..)
-  , ClusterConfigDetails
-  , InstanceReservationConfig
-  , InstanceReservationShapeDetails
-  , ListCapactityReservationRequest
+  ( ListCapactityReservationRequest
   , defaultListCapacityReservationRequest
   , listCapacityReservations
   ) where
@@ -13,53 +8,22 @@ import Prelude
 
 import Control.Monad.Except (runExcept)
 import Data.Either (Either)
-import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
-import Data.Show.Generic (genericShow)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Data.List as List
 import Erl.Data.Map (Map)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), FaultDomainId(..), HpcIslandId(..), NetworkBlockId(..), Shape(..))
-import Foreign (F, MultipleErrors, unsafeFromForeign)
-import Partial.Unsafe (unsafeCrashWith)
-import Simple.JSON (class ReadForeign, readJSON')
-
-data CapactityReservationLifecycleState
-  = Active
-  | Creating
-  | Updating
-  | Moving
-  | Deleted
-  | Deleting
-
-derive instance Eq CapactityReservationLifecycleState
-derive instance Generic CapactityReservationLifecycleState _
-instance ReadForeign CapactityReservationLifecycleState where
-  readImpl f =
-    case unsafeFromForeign f of
-      "ACTIVE" -> pure Active
-      "CREATING" -> pure Creating
-      "UPDATING" -> pure Updating
-      "MOVING" -> pure Moving
-      "DELETED" -> pure Deleted
-      "DELETING" -> pure Deleting
-      somethingElse -> unsafeCrashWith $ "Unexpected CapactityReservationLifecycleState " <> somethingElse
-
-instance Show CapactityReservationLifecycleState where
-  show = genericShow
+import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), FaultDomainId(..), HpcIslandId(..), NetworkBlockId(..), Shape(..))
+import Erl.Oracle.Types.CapacityReservation (CapacityReservation, CapacityReservationLifecycleState, ClusterConfigDetails, InstanceReservationShapeDetails, InstanceReservationConfig)
+import Foreign (F, MultipleErrors)
+import Simple.JSON (readJSON')
 
 type ClusterConfigDetailsInt =
   { "hpc-island-id" :: String
   , "network-block-ids" :: Maybe (List String)
-  }
-
-type ClusterConfigDetails =
-  { hpcIslandId :: HpcIslandId
-  , networkBlockIds :: Maybe (List NetworkBlockId)
   }
 
 fromClusterConfigDetailsInt :: Maybe ClusterConfigDetailsInt -> F (Maybe ClusterConfigDetails)
@@ -78,11 +42,6 @@ fromClusterConfigDetailsInt details =
 type InstanceReservationShapeDetailsInt =
   { "memory-in-gbs" :: Maybe Number
   , "ocpus" :: Maybe Number
-  }
-
-type InstanceReservationShapeDetails =
-  { memoryInGbs :: Maybe Number
-  , ocpus :: Maybe Number
   }
 
 fromInstanceReservationShapeDetailsInt :: Maybe InstanceReservationShapeDetailsInt -> F (Maybe InstanceReservationShapeDetails)
@@ -104,15 +63,6 @@ type InstanceReservationConfigInt =
   , "instance-shape-config" :: Maybe InstanceReservationShapeDetailsInt
   , "reserved-count" :: Int
   , "used-count" :: Int
-  }
-
-type InstanceReservationConfig =
-  { clusterConfig :: Maybe ClusterConfigDetails
-  , faultDomain :: Maybe FaultDomainId
-  , instanceShape :: Shape
-  , instanceShapeConfig :: Maybe InstanceReservationShapeDetails
-  , reservedCount :: Int
-  , usedCount :: Int
   }
 
 fromInstanceReservationConfigInt :: InstanceReservationConfigInt -> F InstanceReservationConfig
@@ -144,27 +94,11 @@ type CapacityReservationInt =
   , "id" :: String
   , "instance-reservation-configs" :: Maybe (List InstanceReservationConfigInt)
   , "is-default-reservation" :: Maybe Boolean
-  , "lifecycle-state" :: CapactityReservationLifecycleState
+  , "lifecycle-state" :: CapacityReservationLifecycleState
   , "reserved-instance-count" :: Maybe Int
   , "time-created" :: String
   , "time-updated" :: Maybe String
   , "used-instance-count" :: Maybe Int
-  }
-
-type CapacityReservation =
-  { availabilityDomain :: AvailabilityDomainId
-  , compartmentId :: CompartmentId
-  , definedTags :: Maybe (Map String (Map String String))
-  , displayName :: Maybe String
-  , freeformTags :: Maybe (Map String String)
-  , id :: CapacityReservationId
-  , instanceReservationConfigs :: Maybe (List InstanceReservationConfig)
-  , isDefaultReservation :: Maybe Boolean
-  , lifecycleState :: CapactityReservationLifecycleState
-  , reservedInstanceCount :: Maybe Int
-  , timeCreated :: String
-  , timeUpdated :: Maybe String
-  , usedInstanceCount :: Maybe Int
   }
 
 fromInstanceReservationConfigsInt :: Maybe (List InstanceReservationConfigInt) -> F (Maybe (List InstanceReservationConfig))

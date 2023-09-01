@@ -1,4 +1,4 @@
-module Erl.Oracle.Types where
+module Erl.Oracle.Types.Common where
 
 import Prelude
 

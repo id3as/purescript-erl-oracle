@@ -1,6 +1,5 @@
 module Erl.Oracle.AvailabilityDomain
-  ( AvailabilityDomain
-  , defaultListAvailabilityDomainRequest
+  ( defaultListAvailabilityDomainRequest
   , listAvailabilityDomains
   ) where
 
@@ -14,7 +13,8 @@ import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types (AvailabilityDomainId(..), CompartmentId(..))
+import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CompartmentId(..))
+import Erl.Oracle.Types.AvailabilityDomain (AvailabilityDomain)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON')
 
@@ -33,11 +33,6 @@ type AvailabilityDomainInt =
   { "compartment-id" :: Maybe String
   , "id" :: Maybe String
   , "name" :: Maybe String
-  }
-
-type AvailabilityDomain =
-  { compartmentId :: Maybe CompartmentId
-  , id :: Maybe AvailabilityDomainId
   }
 
 fromAvailabilityDomainInt :: AvailabilityDomainInt -> F AvailabilityDomain

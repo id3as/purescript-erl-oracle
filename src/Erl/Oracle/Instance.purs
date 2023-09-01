@@ -1,6 +1,5 @@
 module Erl.Oracle.Instance
-  ( InstanceLifecycleState(..)
-  , defaultLaunchInstanceRequest
+  ( defaultLaunchInstanceRequest
   , defaultListInstancesRequest
   , defaultTerminateInstanceRequest
   , launchInstance
@@ -12,12 +11,10 @@ import Prelude
 
 import Control.Monad.Except (ExceptT, runExcept)
 import Data.Either (Either)
-import Data.Generic.Rep (class Generic)
 import Data.Identity (Identity)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
-import Data.Show.Generic (genericShow)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.Binary.IOData (fromString)
@@ -26,53 +23,10 @@ import Erl.Data.Map (Map)
 import Erl.File (writeFile)
 import Erl.FileLib (mkTemp)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FaultDomainId, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, Shape(..), SubnetId, VolumeId, ExtendedMetadata)
-import Foreign (F, ForeignError, MultipleErrors, unsafeFromForeign)
-import Partial.Unsafe (unsafeCrashWith)
-import Simple.JSON (class ReadForeign, class WriteForeign, readJSON', write, writeJSON)
-
-data InstanceLifecycleState
-  = Moving
-  | Provisioning
-  | Running
-  | Starting
-  | Stopping
-  | Stopped
-  | CreatingImage
-  | Terminating
-  | Terminated
-
-derive instance Eq InstanceLifecycleState
-derive instance Generic InstanceLifecycleState _
-instance ReadForeign InstanceLifecycleState where
-  readImpl f =
-    case unsafeFromForeign f of
-      "MOVING" -> pure Moving
-      "PROVISIONING" -> pure Provisioning
-      "RUNNING" -> pure Running
-      "STARTING" -> pure Starting
-      "STOPPING" -> pure Stopping
-      "STOPPED" -> pure Stopped
-      "CREATING_IMAGE" -> pure CreatingImage
-      "TERMINATING" -> pure Terminating
-      "TERMINATED" -> pure Terminated
-      somethingElse -> unsafeCrashWith $ "Unexpected InstanceLifecycleState " <> somethingElse
-
-instance WriteForeign InstanceLifecycleState where
-  writeImpl f =
-    case f of
-      Moving -> write "MOVING"
-      Provisioning -> write "PROVISIONING"
-      Running -> write "RUNNING"
-      Starting -> write "STARTING"
-      Stopping -> write "STOPPING"
-      Stopped -> write "STOPPED"
-      CreatingImage -> write "CREATING_IMAGE"
-      Terminating -> write "TERMINATING"
-      Terminated -> write "TERMINATED"
-
-instance Show InstanceLifecycleState where
-  show = genericShow
+import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FaultDomainId, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, Shape(..), SubnetId, VolumeId, ExtendedMetadata)
+import Erl.Oracle.Types.Instance (InstanceLifecycleState)
+import Foreign (F, ForeignError, MultipleErrors)
+import Simple.JSON (readJSON', writeJSON)
 
 type ListInstancesRequest = BaseRequest
   ( availabilityDomain :: Maybe AvailabilityDomainId
@@ -725,7 +679,7 @@ type TerminateInstanceResponse =
   }
 
 fromTerminateInstanceResponse :: TerminateInstanceResponse -> F Boolean
-fromTerminateInstanceResponse { "data": resp } = pure true
+fromTerminateInstanceResponse { "data": _resp } = pure true
 
 terminateInstance :: TerminateInstanceRequest -> Effect (Either MultipleErrors Boolean)
 terminateInstance req@{ instanceId } = do

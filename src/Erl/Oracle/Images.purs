@@ -1,9 +1,5 @@
 module Erl.Oracle.Images
-  ( ImageDescription
-  , ImageLifecycleState(..)
-  , InstanceAgentFeatures
-  , LaunchOptions
-  , ListImagesRequest
+  ( ListImagesRequest
   , defaultListImagesRequest
   , listImages
   ) where
@@ -12,42 +8,16 @@ import Prelude
 
 import Control.Monad.Except (runExcept)
 import Data.Either (Either)
-import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
-import Data.Show.Generic (genericShow)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types (CompartmentId(..), DefinedTags, ImageId(..), FreeformTags)
-import Foreign (F, MultipleErrors, unsafeFromForeign)
-import Partial.Unsafe (unsafeCrashWith)
-import Simple.JSON (class ReadForeign, readJSON')
-
-data ImageLifecycleState
-  = Available
-  | Deleted
-  | Disabled
-  | Exporting
-  | Importing
-  | Provisioning
-
-derive instance Eq ImageLifecycleState
-derive instance Generic ImageLifecycleState _
-instance ReadForeign ImageLifecycleState where
-  readImpl f =
-    case unsafeFromForeign f of
-      "DELETED" -> pure Deleted
-      "PROVISIONING" -> pure Provisioning
-      "IMPORTING" -> pure Importing
-      "AVAILABLE" -> pure Available
-      "EXPORTING" -> pure Exporting
-      "DISABLED" -> pure Disabled
-      somethingElse -> unsafeCrashWith $ "Unexpected LifecycleState " <> somethingElse
-
-instance Show ImageLifecycleState where
-  show = genericShow
+import Erl.Oracle.Types.Common (CompartmentId(..), DefinedTags, ImageId(..), FreeformTags)
+import Erl.Oracle.Types.Images (ImageLifecycleState, InstanceAgentFeatures, LaunchOptions, ImageDescription)
+import Foreign (F, MultipleErrors)
+import Simple.JSON (readJSON')
 
 type ListImagesRequest = BaseRequest
   ( compartment :: Maybe CompartmentId
@@ -67,23 +37,9 @@ type LaunchOptionsInt =
   , "remote-data-volume-type" :: Maybe String
   }
 
-type LaunchOptions =
-  { bootVolumeType :: Maybe String
-  , firmware :: Maybe String
-  , isConsistentVolumeNamingEnabled :: Maybe Boolean
-  , isPvEncryptionInTransitEnabled :: Maybe Boolean
-  , networkType :: Maybe String
-  , remoteDataVolumeType :: Maybe String
-  }
-
 type InstanceAgentFeaturesInt =
   { "is-management-supported" :: Maybe Boolean -- unused
   , "is-monitoring-supproted" :: Maybe Boolean -- unused
-  }
-
-type InstanceAgentFeatures =
-  { isManagementSupported :: Maybe Boolean
-  , isMonitoringSupported :: Maybe Boolean
   }
 
 type ImageDescriptionInt =
@@ -104,26 +60,6 @@ type ImageDescriptionInt =
   , "operating-system-version" :: String
   , "size-in-mbs" :: Maybe Int
   , "time-created" :: String
-  }
-
-type ImageDescription =
-  { agentFeatures :: Maybe InstanceAgentFeatures
-  , baseImageId :: Maybe String
-  , billableSizeInGbs :: Maybe Int
-  , compartmentId :: Maybe CompartmentId
-  , createImageAllowed :: Boolean
-  , definedTags :: Maybe DefinedTags
-  , displayName :: Maybe String
-  , freeformTags :: Maybe FreeformTags
-  , id :: ImageId
-  , launchMode :: Maybe String
-  , launchOptions :: Maybe LaunchOptions
-  , lifecycleState :: ImageLifecycleState
-  , listingType :: Maybe String
-  , operatingSystem :: String
-  , operatingSystemVersion :: String
-  , sizeInMbs :: Maybe Int
-  , timeCreated :: String
   }
 
 fromInstanceAgentFeaturesInt :: Maybe InstanceAgentFeaturesInt -> F (Maybe InstanceAgentFeatures)

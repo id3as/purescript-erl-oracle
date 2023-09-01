@@ -2,8 +2,6 @@ module Erl.Oracle.VirtualCloudNetwork
   ( CreateVcnRequest
   , DeleteVcnRequest
   , ListVcnsRequest
-  , VcnDetails
-  , VcnLifecycleState(..)
   , createVcn
   , defaultCreateVcnRequest
   , defaultDeleteVcnRequest
@@ -16,7 +14,6 @@ import Prelude
 
 import Control.Monad.Except (runExcept)
 import Data.Either (Either)
-import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
@@ -24,29 +21,10 @@ import Debug (spy)
 import Effect (Effect)
 import Erl.Data.List (List, null)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli, escapeJson)
-import Erl.Oracle.Types (CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, RouteTableId, SecurityListId, VcnId)
-import Foreign (F, MultipleErrors, unsafeFromForeign)
-import Partial.Unsafe (unsafeCrashWith)
-import Simple.JSON (class ReadForeign, readJSON', writeJSON)
-
-data VcnLifecycleState
-  = Provisioning
-  | Available
-  | Terminating
-  | Terminated
-  | Updating
-
-derive instance Eq VcnLifecycleState
-derive instance Generic VcnLifecycleState _
-instance ReadForeign VcnLifecycleState where
-  readImpl f =
-    case unsafeFromForeign f of
-      "AVAILABLE" -> pure Available
-      "PROVISIONING" -> pure Provisioning
-      "TERMINATING" -> pure Terminating
-      "TERMINATED" -> pure Terminated
-      "UPDATING" -> pure Updating
-      somethingElse -> unsafeCrashWith $ "Unexpected VcnLifecycleState " <> somethingElse
+import Erl.Oracle.Types.Common (CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, RouteTableId, SecurityListId, VcnId)
+import Erl.Oracle.Types.VirtualCloudNetwork (VcnLifecycleState, VcnDetails)
+import Foreign (F, MultipleErrors)
+import Simple.JSON (readJSON', writeJSON)
 
 type ListVcnsRequest = BaseRequest
   ( compartment :: CompartmentId
@@ -82,27 +60,6 @@ type VcnDetailsInt =
   , "lifecycle-state" :: VcnLifecycleState
   , "time-created" :: String
   , "vcn-domain-name" :: Maybe String
-  }
-
-type VcnDetails =
-  { byiop6CidrBlocks :: Maybe (List String)
-  , cidrBlock :: Maybe String
-  , cidrBlocks :: List String
-  , compartmentId :: CompartmentId
-  , defaultDhcpOptionsId :: Maybe DhcpOptionsId
-  , defaultRouteTableId :: Maybe RouteTableId
-  , defaultSecurityListId :: Maybe SecurityListId
-  , definedTags :: DefinedTags
-  , displayName :: Maybe String
-  , dnsLabel :: Maybe String
-  , freeformTags :: FreeformTags
-  , id :: VcnId
-  , ipv6CidrBlock :: Maybe String
-  , ipv6PrivateCidrBlocks :: Maybe (List String)
-  , ipv6PublicCidrBlock :: Maybe String
-  , lifecycleState :: VcnLifecycleState
-  , timeCreated :: String
-  , vcnDomainName :: Maybe String
   }
 
 fromVcnDetailsInt :: VcnDetailsInt -> F VcnDetails

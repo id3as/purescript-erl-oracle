@@ -1,7 +1,5 @@
 module Erl.Oracle.Compartments
-  ( CompartmentDescription
-  , CompartmentLifecycleState(..)
-  , ListCompartmentsRequest
+  ( ListCompartmentsRequest
   , defaultListCompartmentsRequest
   , listCompartments
   ) where
@@ -10,40 +8,16 @@ import Prelude
 
 import Control.Monad.Except (runExcept)
 import Data.Either (Either)
-import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
-import Data.Show.Generic (genericShow)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types (CompartmentId(..), DefinedTags, FreeformTags)
-import Foreign (F, MultipleErrors, unsafeFromForeign)
-import Partial.Unsafe (unsafeCrashWith)
-import Simple.JSON (class ReadForeign, readJSON')
-
-data CompartmentLifecycleState
-  = Active
-  | Creating
-  | Inactive
-  | Deleted
-  | Deleting
-
-derive instance Eq CompartmentLifecycleState
-derive instance Generic CompartmentLifecycleState _
-instance ReadForeign CompartmentLifecycleState where
-  readImpl f =
-    case unsafeFromForeign f of
-      "ACTIVE" -> pure Active
-      "CREATING" -> pure Creating
-      "INACTIVE" -> pure Inactive
-      "DELETED" -> pure Deleted
-      "DELETING" -> pure Deleting
-      somethingElse -> unsafeCrashWith $ "Unexpected CompartmentLifecycleState " <> somethingElse
-
-instance Show CompartmentLifecycleState where
-  show = genericShow
+import Erl.Oracle.Types.Common (CompartmentId(..), DefinedTags, FreeformTags)
+import Erl.Oracle.Types.Compartments (CompartmentLifecycleState, CompartmentDescription)
+import Foreign (F, MultipleErrors)
+import Simple.JSON (readJSON')
 
 type ListCompartmentsRequest = BaseRequest (compartment :: Maybe CompartmentId)
 
@@ -63,19 +37,6 @@ type CompartmentDescriptionInt =
   , "lifecycle-state" :: CompartmentLifecycleState
   , "name" :: String
   , "time-created" :: String
-  }
-
-type CompartmentDescription =
-  { compartmentId :: CompartmentId
-  , definedTags :: Maybe DefinedTags
-  , description :: String
-  , freeformTags :: Maybe FreeformTags
-  , id :: String
-  , inactiveStatus :: Maybe Int
-  , isAccessible :: Maybe Boolean
-  , lifecycleState :: CompartmentLifecycleState
-  , name :: String
-  , timeCreated :: String
   }
 
 fromCompartmentInt :: CompartmentDescriptionInt -> F CompartmentDescription

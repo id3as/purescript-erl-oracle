@@ -2,8 +2,6 @@ module Erl.Oracle.Subnet
   ( CreateSubnetRequest
   , DeleteSubnetRequest
   , ListSubnetsRequest
-  , SubnetDetails
-  , SubnetLifecycleState(..)
   , createSubnet
   , defaultCreateSubnetRequest
   , defaultDeleteSubnetRequest
@@ -16,34 +14,16 @@ import Prelude
 
 import Control.Monad.Except (runExcept)
 import Data.Either (Either)
-import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types (AvailabilityDomainId, CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, RouteTableId, SecurityListId, SubnetId, VcnId)
-import Foreign (F, MultipleErrors, unsafeFromForeign)
-import Partial.Unsafe (unsafeCrashWith)
-import Simple.JSON (class ReadForeign, readJSON')
-
-data SubnetLifecycleState
-  = Provisioning
-  | Available
-  | Terminating
-  | Terminated
-
-derive instance Eq SubnetLifecycleState
-derive instance Generic SubnetLifecycleState _
-instance ReadForeign SubnetLifecycleState where
-  readImpl f =
-    case unsafeFromForeign f of
-      "AVAILABLE" -> pure Available
-      "PROVISIONING" -> pure Provisioning
-      "TERMINATING" -> pure Terminating
-      "TERMINATED" -> pure Terminated
-      somethingElse -> unsafeCrashWith $ "Unexpected InstanceLifecycleState " <> somethingElse
+import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, RouteTableId, SecurityListId, SubnetId, VcnId)
+import Erl.Oracle.Types.Subnet (SubnetLifecycleState, SubnetDetails)
+import Foreign (F, MultipleErrors)
+import Simple.JSON (readJSON')
 
 type ListSubnetsRequest = BaseRequest
   ( compartment :: CompartmentId
@@ -85,31 +65,6 @@ type SubnetDetailsInt =
   , "vcn-id" :: VcnId
   , "virtual-router-ip" :: String
   , "virtual-router-mac" :: String
-  }
-
-type SubnetDetails =
-  { availabilityDomain :: Maybe AvailabilityDomainId
-  , cidrBlock :: String
-  , compartment :: CompartmentId
-  , definedTags :: Maybe DefinedTags
-  , dhcpOptions :: Maybe DhcpOptionsId
-  , displayName :: Maybe String
-  , dnsLabel :: Maybe String
-  , freeformTags :: Maybe FreeformTags
-  , id :: SubnetId
-  , ipv6CidrBlock :: Maybe String
-  , ipv6CidrBlocks :: Maybe (List String)
-  , ipv6PublicCidrBlock :: Maybe String
-  , ipv6VirtualRouterIp :: Maybe String
-  , lifecycleState :: SubnetLifecycleState
-  , prohibitPublicIpOnVnic :: Maybe Boolean
-  , routeTableId :: RouteTableId
-  , securityListIds :: Maybe (List SecurityListId)
-  , subnetDomainName :: Maybe String
-  , timeCreated :: String
-  , vcnId :: VcnId
-  , virtualRouterIp :: String
-  , virtualRouterMac :: String
   }
 
 fromSubnetDetailsInt :: SubnetDetailsInt -> F SubnetDetails

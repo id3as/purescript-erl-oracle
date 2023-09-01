@@ -1,14 +1,5 @@
 module Erl.Oracle.Shape
-  ( AlternativeObject
-  , ListShapesRequest
-  , MaxVnicAttachmentOptions
-  , MemoryOptions
-  , NetworkingBandwidthOptions
-  , OcpuOptions
-  , PercentageOfCoresEnabledOptions
-  , PlatformConfigOptions
-  , ServiceEnabledOptions
-  , ShapeDescription
+  ( ListShapesRequest
   , defaultListShapesRequest
   , listShapes
   ) where
@@ -24,7 +15,8 @@ import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Data.Map (Map)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types (CompartmentId(..), Shape(..))
+import Erl.Oracle.Types.Common (CompartmentId, Shape(..))
+import Erl.Oracle.Types.Shape (AlternativeObject, MaxVnicAttachmentOptions, MemoryOptions, OcpuOptions, PercentageOfCoresEnabledOptions, PlatformConfigOptions, ServiceEnabledOptions, ShapeDescription, NetworkingBandwidthOptions)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON')
 
@@ -39,10 +31,6 @@ defaultListShapesRequest =
 
 type AlternativeObjectInt =
   { "shape-name" :: String
-  }
-
-type AlternativeObject =
-  { shapeName :: String
   }
 
 fromRecommendedAlternative :: AlternativeObjectInt -> F AlternativeObject
@@ -60,12 +48,6 @@ type PercentageOfCoresEnabledOptionsInt =
   { "default-value" :: Maybe Int
   , "max" :: Maybe Int
   , "min" :: Maybe Int
-  }
-
-type PercentageOfCoresEnabledOptions =
-  { defaultValue :: Maybe Int
-  , max :: Maybe Int
-  , min :: Maybe Int
   }
 
 fromPercentageOfCoresEnabledOptionsInt :: Maybe PercentageOfCoresEnabledOptionsInt -> F (Maybe PercentageOfCoresEnabledOptions)
@@ -86,11 +68,6 @@ fromPercentageOfCoresEnabledOptionsInt opts =
 type ServiceEnabledOptionsInt =
   { "allowed-values" :: Maybe (List Boolean)
   , "is-default-enabled" :: Maybe Boolean
-  }
-
-type ServiceEnabledOptions =
-  { allowedValues :: Maybe (List Boolean)
-  , isDefaultEnabled :: Maybe Boolean
   }
 
 fromServiceEnabledOptionsInt :: Maybe ServiceEnabledOptionsInt -> F (Maybe ServiceEnabledOptions)
@@ -117,19 +94,6 @@ type PlatformConfigOptionsInt =
   , "trusted-platform-module-options" :: Maybe ServiceEnabledOptionsInt
   , "type" :: Maybe String
   , "virtual-instruction-options" :: Maybe ServiceEnabledOptionsInt
-  }
-
-type PlatformConfigOptions =
-  { accessControlServiceOptions :: Maybe ServiceEnabledOptions
-  , inputOutputMemoryManagementUnitOptions :: Maybe ServiceEnabledOptions
-  , measuredBootOptions :: Maybe ServiceEnabledOptions
-  , numaNodesPerSocketPlatformOptions :: Maybe ServiceEnabledOptions
-  , percentageOfCoresEnabledOptions :: Maybe PercentageOfCoresEnabledOptions
-  , secureBootOptions :: Maybe ServiceEnabledOptions
-  , symmetricMultiThreadingOptions :: Maybe ServiceEnabledOptions
-  , trustedPlatformModuleOptions :: Maybe ServiceEnabledOptions
-  , type :: Maybe String
-  , virtualInstructionOptions :: Maybe ServiceEnabledOptions
   }
 
 fromPlatformConfigOptionsInt :: Maybe PlatformConfigOptionsInt -> F (Maybe PlatformConfigOptions)
@@ -176,11 +140,6 @@ type OcpuOptionsInt =
   , "min" :: Maybe Number
   }
 
-type OcpuOptions =
-  { max :: Maybe Number
-  , min :: Maybe Number
-  }
-
 fromOcpuOptionsInt :: Maybe OcpuOptionsInt -> F (Maybe OcpuOptions)
 fromOcpuOptionsInt opts =
   case opts of
@@ -198,12 +157,6 @@ type NetworkingBandwidthOptionsInt =
   { "default-per-ocpus-in-gbps" :: Maybe Number
   , "max-in-gbps" :: Maybe Number
   , "min-in-gbps" :: Maybe Number
-  }
-
-type NetworkingBandwidthOptions =
-  { defaultPerOcpusInGbps :: Maybe Number
-  , maxInGbps :: Maybe Number
-  , minInGbps :: Maybe Number
   }
 
 fromNetworkingBandwithOptionsInt :: Maybe NetworkingBandwidthOptionsInt -> F (Maybe NetworkingBandwidthOptions)
@@ -229,14 +182,6 @@ type MemoryOptionsInt =
   , "min-per-ocpu-in-gbps" :: Maybe Number
   }
 
-type MemoryOptions =
-  { defaultPerOcpuInGbps :: Maybe Number
-  , maxInGbps :: Maybe Number
-  , maxPerOcpuInGbps :: Maybe Number
-  , minInGbps :: Maybe Number
-  , minPerOcpuInGbps :: Maybe Number
-  }
-
 fromMemoryOptionsInt :: Maybe MemoryOptionsInt -> F (Maybe MemoryOptions)
 fromMemoryOptionsInt opts =
   case opts of
@@ -260,12 +205,6 @@ type MaxVnicAttachmentOptionsInt =
   { "default-per-ocpu" :: Maybe Number
   , "max" :: Maybe Number
   , "min" :: Maybe Int
-  }
-
-type MaxVnicAttachmentOptions =
-  { defaultPerOcpu :: Maybe Number
-  , max :: Maybe Number
-  , min :: Maybe Int
   }
 
 fromMaxVnicAttachmentOptionsInt :: Maybe MaxVnicAttachmentOptionsInt -> F (Maybe MaxVnicAttachmentOptions)
@@ -316,41 +255,6 @@ type ShapeDescriptionInt =
   , "recommended-alternatives" :: Maybe (List AlternativeObjectInt)
   , "resize-compatible-shapes" :: Maybe (List String)
   , "shape" :: String
-  }
-
-type ShapeDescription =
-  { availabilityDomain :: Maybe String
-  , baselineOcpuUtilizations :: Maybe (List String)
-  , billingType :: Maybe String
-  , definedTags :: Maybe (Map String (Map String String))
-  , freeformTags :: Maybe (Map String String)
-  , gpuDescription :: Maybe String
-  , gpus :: Maybe Int
-  , isBilledForStoppedInstance :: Maybe Boolean
-  , isFlexible :: Maybe Boolean
-  , isLiveMigrationSupported :: Maybe Boolean
-  , isSubcore :: Maybe Boolean
-  , localDiskDescription :: Maybe String
-  , localDisks :: Maybe Int
-  , localDisksTotalSizeInGbs :: Maybe Number
-  , maxVnicAttachmentOptions :: Maybe MaxVnicAttachmentOptions
-  , maxVnicAttachments :: Maybe Int
-  , memoryInGbs :: Maybe Number
-  , memoryOptions :: Maybe MemoryOptions
-  , minTotalBaselineOcpusRequired :: Maybe Number
-  , networkPorts :: Maybe Int
-  , networkingBandwidthInGbps :: Maybe Number
-  , networkingBandwidthOptions :: Maybe NetworkingBandwidthOptions
-  , ocpuOptions :: Maybe OcpuOptions
-  , ocpus :: Maybe Number
-  , platformConfigOptions :: Maybe PlatformConfigOptions
-  , processorDescription :: Maybe String
-  , quotaNames :: Maybe (List String)
-  , rdmaBandwidthInGbps :: Maybe Int
-  , rdmaPorts :: Maybe Int
-  , recommendedAlternatives :: Maybe (List AlternativeObject)
-  , resizeCompatibleShapes :: Maybe (List String)
-  , shape :: Shape
   }
 
 fromShapesDescriptionInt :: ShapeDescriptionInt -> F ShapeDescription

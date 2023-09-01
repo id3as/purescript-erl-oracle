@@ -1,8 +1,5 @@
 module Erl.Oracle.ShapeCompatibility
-  ( ImageMemoryConstraints
-  , ImageOcpuConstraints
-  , ImageShapeCompatibility
-  , ListImageShapeCompatibilityRequest
+  ( ListImageShapeCompatibilityRequest
   , defaultListImageShapeCompatibilityRequest
   , listCompatibleShapes
   ) where
@@ -17,7 +14,8 @@ import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types (ImageId(..), Shape(..))
+import Erl.Oracle.Types.Common (ImageId(..), Shape(..))
+import Erl.Oracle.Types.ShapeCompatibility (ImageMemoryConstraints, ImageShapeCompatibility, ImageOcpuConstraints)
 import Foreign (MultipleErrors, F)
 import Simple.JSON (readJSON')
 
@@ -33,11 +31,6 @@ type ImageMemoryConstraintsInt =
   , "min-in-gbs" :: Maybe Int
   }
 
-type ImageMemoryConstraints =
-  { maxInGbs :: Maybe Int
-  , minInGbs :: Maybe Int
-  }
-
 fromImageMemoryConstraintsInt :: Maybe ImageMemoryConstraintsInt -> F (Maybe ImageMemoryConstraints)
 fromImageMemoryConstraintsInt constraints =
   case constraints of
@@ -48,11 +41,6 @@ fromImageMemoryConstraintsInt constraints =
 type ImageOcpuConstraintsInt =
   { "max" :: Maybe Int
   , "min" :: Maybe Int
-  }
-
-type ImageOcpuConstraints =
-  { max :: Maybe Int
-  , min :: Maybe Int
   }
 
 fromImageOcpuConstraintsInt :: Maybe ImageOcpuConstraintsInt -> F (Maybe ImageOcpuConstraints)
@@ -67,13 +55,6 @@ type ImageShapeCompatibilityInt =
   , "memory-constraints" :: Maybe ImageMemoryConstraintsInt
   , "ocpu-constraints" :: Maybe ImageOcpuConstraintsInt
   , "shape" :: String
-  }
-
-type ImageShapeCompatibility =
-  { imageId :: ImageId
-  , memoryConstraints :: Maybe ImageMemoryConstraints
-  , ocpuConstraints :: Maybe ImageOcpuConstraints
-  , shape :: Shape
   }
 
 fromImageShapeCompatibilityInt :: ImageShapeCompatibilityInt -> F ImageShapeCompatibility
