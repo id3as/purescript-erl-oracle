@@ -1,4 +1,4 @@
-module Erl.Json
+module Erl.Oracle.Json
   ( class GenericTaggedWriteForeign
   , genericTaggedWriteForeignImpl
   , class GenericTaggedReadForeign
