@@ -13,7 +13,7 @@ import Data.Show.Generic (genericShow)
 import Erl.Oracle.Types.Common (CompartmentId, DefinedTags, FreeformTags, ImageId)
 import Foreign (unsafeFromForeign)
 import Partial.Unsafe (unsafeCrashWith)
-import Simple.JSON (class ReadForeign)
+import Simple.JSON (class ReadForeign, class WriteForeign, write)
 
 data ImageLifecycleState
   = Available
@@ -35,6 +35,16 @@ instance ReadForeign ImageLifecycleState where
       "EXPORTING" -> pure Exporting
       "DISABLED" -> pure Disabled
       somethingElse -> unsafeCrashWith $ "Unexpected LifecycleState " <> somethingElse
+
+instance WriteForeign ImageLifecycleState where
+  writeImpl f =
+    case f of
+      Provisioning -> write "PROVISIONING"
+      Deleted -> write "DELETED"
+      Importing -> write "IMPORTING"
+      Available -> write "AVAILABLE"
+      Exporting -> write "EXPORTING"
+      Disabled -> write "DISABLED"
 
 instance Show ImageLifecycleState where
   show = genericShow
