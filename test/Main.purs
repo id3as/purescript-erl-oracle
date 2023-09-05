@@ -41,7 +41,7 @@ ociTests :: Free TestF Unit
 ociTests = do
   let
     -- You'll want to use your own tenancy
-    compartment = CompartmentId "ocid1.tenancy.oc1..aaaaaaaaj3cbwlxdi7tewdo2zikxrp3qiatz3tx6l2vj6bpbvr2wp5u5lrja"
+    compartment = CompartmentId "ocid1.tenancy.oc1..aaaaaaaajycivti4bmq4kignjlabrv2egvp7abj676tzkeefavboxavstx7a"
   suite "list compartments" do
     test "Can parse response" do
       void $ Application.ensureAllStarted $ atom "erlexec"
@@ -139,6 +139,12 @@ ociTests = do
         void $ Application.ensureAllStarted $ atom "erlexec"
         unsafeRunProcessM
           $ do
+              actual <- liftEffect $ createVcn $ (defaultCreateVcnRequest compartment)
+                { cidrBlocks = Just $ "192.168.0.0/24" : List.nil
+                , displayName = Just "unit test vcn"
+                , dnsLabel = Just "unittestvcn"
+                }
+
               (vcns :: Either (NonEmptyList ForeignError) (List VcnDetails)) <- liftEffect $ listVcns $ defaultListVcnsRequest compartment
 
               let
@@ -197,18 +203,18 @@ ociTests = do
                 maybeAvailabilityDomain = case availabilityDomains' of
                   Just s -> do
                     let
-                      firstDomain = head s
+                      firstDomain = head $ List.reverse s
                     case firstDomain of
                       Just ad -> ad.id
                       Nothing -> Nothing
                   Nothing ->
                     Nothing
 
-              case maybeSubnet, maybeAvailabilityDomain of
-                Just subnet, Just availabilityDomain -> do
+              case maybeSubnet, maybeAvailabilityDomain, maybeVcn of
+                Just subnet, Just availabilityDomain, Just vcnId -> do
                   createdInstance <- liftEffect $ launchInstance $ (defaultLaunchInstanceRequest availabilityDomain compartment (Shape "VM.Standard.E2.1.Micro") subnet)
                     { displayName = Just "unit test instance"
-                    , imageId = Just $ ImageId "ocid1.image.oc1.uk-london-1.aaaaaaaaxraojqdm5bt764bf34uxxahjl6h3u6cx4lu264kqm7xnvhhzwh5q"
+                    , imageId = Just $ ImageId "ocid1.image.oc1.uk-london-1.aaaaaaaazngdzjtqmduhr2w3gzijcwyvtahaucuqyj2bxxp2lwyvxk5oanfa"
                     }
 
                   liftEffect $ assertTrue' "Instance was launched " $ isRight createdInstance
@@ -220,9 +226,10 @@ ociTests = do
                       void $ liftEffect $ sleep $ Milliseconds 60000.0
                       deletedSubnet <- liftEffect $ deleteSubnet $ defaultDeleteSubnetRequest subnet
                       void $ liftEffect $ assertTrue' "Deleted subnet" $ isRight deletedSubnet
+                      void $ liftEffect $ deleteVcn $ defaultDeleteVcnRequest vcnId
                     Left _ -> do
                       liftEffect $ assertTrue' "Instance was not created " false
                   liftEffect $ assertTrue' "Instance was launched " true
-                _, _ ->
+                _, _, _ ->
                   liftEffect $ assertTrue' "Instance was not created " false
 
