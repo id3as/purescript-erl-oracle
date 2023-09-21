@@ -24,7 +24,8 @@ import Erl.File (writeFile)
 import Erl.FileLib (mkTemp)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
 import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FaultDomainId, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, Shape(..), SubnetId, VolumeId, ExtendedMetadata)
-import Erl.Oracle.Types.Instance (InstanceLifecycleState)
+import Erl.Oracle.Types.Images (LaunchOptions)
+import Erl.Oracle.Types.Instance (AgentConfig, AvailabilityConfig, InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceDescription, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, PreemptibleInstanceConfig, PreemptionAction, ShapeConfig, PlatformConfig)
 import Foreign (F, ForeignError, MultipleErrors)
 import Simple.JSON (readJSON', writeJSON)
 
@@ -52,11 +53,6 @@ type InstanceAgentPluginConfigDetailsInt =
   , "name" :: String
   }
 
-type InstanceAgentPluginConfigDetails =
-  { desiredState :: String
-  , name :: String
-  }
-
 fromInstanceAgentPluginConfigDetailInt :: InstanceAgentPluginConfigDetailsInt -> F InstanceAgentPluginConfigDetails
 fromInstanceAgentPluginConfigDetailInt
   { "desired-state": desiredState
@@ -80,13 +76,6 @@ type InstanceAgentConfigInt =
   , "is-management-disabled" :: Maybe Boolean
   , "is-monitoring-disabled" :: Maybe Boolean
   , "plugins-config" :: Maybe (List InstanceAgentPluginConfigDetailsInt)
-  }
-
-type InstanceAgentConfig =
-  { areAllPluginsDisabled :: Maybe Boolean
-  , isManagementDisabled :: Maybe Boolean
-  , isMonitoringDisabled :: Maybe Boolean
-  , pluginsConfig :: Maybe (List InstanceAgentPluginConfigDetails)
   }
 
 fromInstanceAgentConfigInt :: Maybe InstanceAgentConfigInt -> F (Maybe InstanceAgentConfig)
@@ -113,11 +102,6 @@ type InstanceAvailabilityConfigInt =
   , "recovery-action" :: Maybe String
   }
 
-type InstanceAvailabilityConfig =
-  { isLiveMigrationPreferred :: Maybe Boolean
-  , recoveryAction :: Maybe String
-  }
-
 fromInstanceAvailabilityConfigInt :: Maybe InstanceAvailabilityConfigInt -> F (Maybe InstanceAvailabilityConfig)
 fromInstanceAvailabilityConfigInt config =
   case config of
@@ -135,10 +119,6 @@ type InstanceOptionsInt =
   { "are-legacy-lmds-endpoints-disabled" :: Maybe Boolean
   }
 
-type InstanceOptions =
-  { areLegacyLmdsEndpointsDisabled :: Maybe Boolean
-  }
-
 fromInstanceOptionsInt :: Maybe InstanceOptionsInt -> F (Maybe InstanceOptions)
 fromInstanceOptionsInt opts =
   case opts of
@@ -153,15 +133,6 @@ type LaunchOptionsInt =
   , "is-pv-encryption-in-transit-enabled" :: Maybe Boolean
   , "network-type" :: Maybe String
   , "remote-data-volume-type" :: Maybe String
-  }
-
-type LaunchOptions =
-  { bootVolumeType :: Maybe String
-  , firmware :: Maybe String
-  , isConsistentVolumeNamingEnabled :: Maybe Boolean
-  , isPvEncryptionInTransitEnabled :: Maybe Boolean
-  , networkType :: Maybe String
-  , remoteDataVolumeType :: Maybe String
   }
 
 fromLaunchOptionsInt :: Maybe LaunchOptionsInt -> F (Maybe LaunchOptions)
@@ -192,13 +163,6 @@ type InstancePlatformConfigInt =
   , "type" :: String
   }
 
-type InstancePlatformConfig =
-  { isMeasuredBootEnabled :: Maybe Boolean
-  , isSecureBootEnabled :: Maybe Boolean
-  , isTrustedPlatformEnabled :: Maybe Boolean
-  , type :: String
-  }
-
 fromInstancePlatformConfigInt :: Maybe InstancePlatformConfigInt -> F (Maybe InstancePlatformConfig)
 fromInstancePlatformConfigInt config =
   case config of
@@ -219,19 +183,11 @@ type PreemptionActionInt =
   { "type" :: String
   }
 
-type PreemptionAction =
-  { type :: String
-  }
-
 fromPreemptionActionInt :: PreemptionActionInt -> F PreemptionAction
 fromPreemptionActionInt { "type": actiontype } = do pure { type: actiontype }
 
 type PreemptibleInstanceConfigInt =
   { "preemption-action" :: PreemptionActionInt
-  }
-
-type PreemptibleInstanceConfig =
-  { preemptionAction :: PreemptionAction
   }
 
 fromPreemptibleInstanceConfigInt :: Maybe PreemptibleInstanceConfigInt -> F (Maybe PreemptibleInstanceConfig)
@@ -241,37 +197,6 @@ fromPreemptibleInstanceConfigInt config =
       action <- fromPreemptionActionInt preemptionAction
       pure $ Just { preemptionAction: action }
     Nothing -> pure $ Nothing
-
-type AgentPluginConfigDetails =
-  { desiredState :: String
-  , name :: String
-  }
-
-type AgentConfig =
-  { areAllPluginsDisabled :: Maybe Boolean
-  , isManagementDisabled :: Maybe Boolean
-  , isMonitoringDisabled :: Maybe Boolean
-  , pluginsConfig :: Maybe (List AgentPluginConfigDetails)
-  }
-
-type AvailabilityConfig =
-  { isLiveMigrationPreferred :: Maybe Boolean
-  , recoveryAction :: Maybe String
-  }
-
-type ShapeConfig =
-  { baselineOcpuUtilization :: Maybe String
-  , memoryInGBs :: Maybe Number
-  , nvmes :: Maybe Int
-  , ocpus :: Maybe Number
-  }
-
-type PlatformConfig =
-  { isMeasuredBootEnabled :: Maybe Boolean
-  , isSecureBootEnabled :: Maybe Boolean
-  , isTrustedPlatformModuleEnabled :: Maybe Boolean
-  , type :: Maybe String
-  }
 
 type InstanceShapeConfigInt =
   { "baseline-ocpu-utilization" :: Maybe String
@@ -285,20 +210,6 @@ type InstanceShapeConfigInt =
   , "networking-bandwidth-in-gbps" :: Maybe Number
   , "ocpus" :: Maybe Number
   , "processor-description" :: Maybe String
-  }
-
-type InstanceShapeConfig =
-  { baselineOcpuUtilization :: Maybe String
-  , gpuDescription :: Maybe String
-  , gpus :: Maybe Int
-  , localDiskDescription :: Maybe String
-  , localDisks :: Maybe Int
-  , localDiskSizeInGbs :: Maybe Number
-  , maxVnicAttachments :: Maybe Int
-  , memoryInGbs :: Maybe Number
-  , networkingBandwidthInGbps :: Maybe Number
-  , ocpus :: Maybe Number
-  , processorDescription :: Maybe String
   }
 
 fromInstanceShapeConfigInt :: Maybe InstanceShapeConfigInt -> F (Maybe InstanceShapeConfig)
@@ -332,35 +243,6 @@ fromInstanceShapeConfigInt config =
           , processorDescription
           }
     Nothing -> pure Nothing
-
-type InstanceDescription =
-  { agentConfig :: Maybe InstanceAgentConfig
-  , availabilityConfig :: Maybe InstanceAvailabilityConfig
-  , availabilityDomain :: AvailabilityDomainId
-  , capacityReservationId :: Maybe CapacityReservationId
-  , compartmentId :: CompartmentId
-  , dedicatedVmHostId :: Maybe DedicatedVmHostId
-  , definedTags :: Maybe DefinedTags
-  , displayName :: Maybe String
-  , extendedMetadata :: Maybe ExtendedMetadata
-  , faultDomain :: Maybe String
-  , freeformTags :: Maybe FreeformTags
-  , id :: InstanceId
-  , imageId :: ImageId
-  , instanceOptions :: Maybe InstanceOptions
-  , ipxeScript :: Maybe String
-  , launchMode :: Maybe LaunchMode
-  , launchOptions :: Maybe LaunchOptions
-  , lifecycleState :: InstanceLifecycleState
-  , metadata :: Maybe Metadata
-  , platformConfig :: Maybe InstancePlatformConfig
-  , preemptibleInstanceConfig :: Maybe PreemptibleInstanceConfig
-  , shape :: Shape
-  , shapeConfig :: Maybe InstanceShapeConfig
-  --, sourceDetails :: Maybe InstanceSourceDetails
-  , timeCreated :: String
-  , timeMaintenanceRebootDue :: Maybe String
-  }
 
 type InstanceDescriptionInt =
   { "agent-config" :: Maybe InstanceAgentConfigInt

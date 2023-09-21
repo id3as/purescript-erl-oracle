@@ -1,11 +1,29 @@
 module Erl.Oracle.Types.Instance
-  ( InstanceLifecycleState(..)
+  ( AgentConfig
+  , AgentPluginConfigDetails
+  , AvailabilityConfig
+  , InstanceAgentConfig
+  , InstanceAgentPluginConfigDetails
+  , InstanceAvailabilityConfig
+  , InstanceDescription
+  , InstanceLifecycleState(..)
+  , InstanceOptions
+  , InstancePlatformConfig
+  , InstanceShapeConfig
+  , LaunchOptions
+  , PlatformConfig
+  , PreemptibleInstanceConfig
+  , PreemptionAction
+  , ShapeConfig
   ) where
 
 import Prelude
 
 import Data.Generic.Rep (class Generic)
+import Data.Maybe (Maybe)
 import Data.Show.Generic (genericShow)
+import Erl.Data.List (List)
+import Erl.Oracle.Types.Common (AvailabilityDomainId, CapacityReservationId, CompartmentId, DedicatedVmHostId, DefinedTags, ExtendedMetadata, FreeformTags, ImageId, InstanceId, LaunchMode, Metadata, Shape)
 import Foreign (unsafeFromForeign)
 import Partial.Unsafe (unsafeCrashWith)
 import Simple.JSON (class ReadForeign, class WriteForeign, write)
@@ -52,3 +70,122 @@ instance WriteForeign InstanceLifecycleState where
 
 instance Show InstanceLifecycleState where
   show = genericShow
+
+type InstanceAgentPluginConfigDetails =
+  { desiredState :: String
+  , name :: String
+  }
+
+type InstanceAgentConfig =
+  { areAllPluginsDisabled :: Maybe Boolean
+  , isManagementDisabled :: Maybe Boolean
+  , isMonitoringDisabled :: Maybe Boolean
+  , pluginsConfig :: Maybe (List InstanceAgentPluginConfigDetails)
+  }
+
+type InstanceAvailabilityConfig =
+  { isLiveMigrationPreferred :: Maybe Boolean
+  , recoveryAction :: Maybe String
+  }
+
+type InstanceOptions =
+  { areLegacyLmdsEndpointsDisabled :: Maybe Boolean
+  }
+
+type LaunchOptions =
+  { bootVolumeType :: Maybe String
+  , firmware :: Maybe String
+  , isConsistentVolumeNamingEnabled :: Maybe Boolean
+  , isPvEncryptionInTransitEnabled :: Maybe Boolean
+  , networkType :: Maybe String
+  , remoteDataVolumeType :: Maybe String
+  }
+
+type InstancePlatformConfig =
+  { isMeasuredBootEnabled :: Maybe Boolean
+  , isSecureBootEnabled :: Maybe Boolean
+  , isTrustedPlatformEnabled :: Maybe Boolean
+  , type :: String
+  }
+
+type PreemptionAction =
+  { type :: String
+  }
+
+type PreemptibleInstanceConfig =
+  { preemptionAction :: PreemptionAction
+  }
+
+type AgentConfig =
+  { areAllPluginsDisabled :: Maybe Boolean
+  , isManagementDisabled :: Maybe Boolean
+  , isMonitoringDisabled :: Maybe Boolean
+  , pluginsConfig :: Maybe (List AgentPluginConfigDetails)
+  }
+
+type AgentPluginConfigDetails =
+  { desiredState :: String
+  , name :: String
+  }
+
+type AvailabilityConfig =
+  { isLiveMigrationPreferred :: Maybe Boolean
+  , recoveryAction :: Maybe String
+  }
+
+type ShapeConfig =
+  { baselineOcpuUtilization :: Maybe String
+  , memoryInGBs :: Maybe Number
+  , nvmes :: Maybe Int
+  , ocpus :: Maybe Number
+  }
+
+type PlatformConfig =
+  { isMeasuredBootEnabled :: Maybe Boolean
+  , isSecureBootEnabled :: Maybe Boolean
+  , isTrustedPlatformModuleEnabled :: Maybe Boolean
+  , type :: Maybe String
+  }
+
+type InstanceShapeConfig =
+  { baselineOcpuUtilization :: Maybe String
+  , gpuDescription :: Maybe String
+  , gpus :: Maybe Int
+  , localDiskDescription :: Maybe String
+  , localDisks :: Maybe Int
+  , localDiskSizeInGbs :: Maybe Number
+  , maxVnicAttachments :: Maybe Int
+  , memoryInGbs :: Maybe Number
+  , networkingBandwidthInGbps :: Maybe Number
+  , ocpus :: Maybe Number
+  , processorDescription :: Maybe String
+  }
+
+type InstanceDescription =
+  { agentConfig :: Maybe InstanceAgentConfig
+  , availabilityConfig :: Maybe InstanceAvailabilityConfig
+  , availabilityDomain :: AvailabilityDomainId
+  , capacityReservationId :: Maybe CapacityReservationId
+  , compartmentId :: CompartmentId
+  , dedicatedVmHostId :: Maybe DedicatedVmHostId
+  , definedTags :: Maybe DefinedTags
+  , displayName :: Maybe String
+  , extendedMetadata :: Maybe ExtendedMetadata
+  , faultDomain :: Maybe String
+  , freeformTags :: Maybe FreeformTags
+  , id :: InstanceId
+  , imageId :: ImageId
+  , instanceOptions :: Maybe InstanceOptions
+  , ipxeScript :: Maybe String
+  , launchMode :: Maybe LaunchMode
+  , launchOptions :: Maybe LaunchOptions
+  , lifecycleState :: InstanceLifecycleState
+  , metadata :: Maybe Metadata
+  , platformConfig :: Maybe InstancePlatformConfig
+  , preemptibleInstanceConfig :: Maybe PreemptibleInstanceConfig
+  , shape :: Shape
+  , shapeConfig :: Maybe InstanceShapeConfig
+  --, sourceDetails :: Maybe InstanceSourceDetails
+  , timeCreated :: String
+  , timeMaintenanceRebootDue :: Maybe String
+  }
