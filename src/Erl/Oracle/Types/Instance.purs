@@ -10,12 +10,14 @@ module Erl.Oracle.Types.Instance
   , InstanceOptions
   , InstancePlatformConfig
   , InstanceShapeConfig
+  , LaunchInstanceRequest
   , LaunchOptions
   , PlatformConfig
   , PreemptibleInstanceConfig
   , PreemptionAction
   , ShapeConfig
-  ) where
+  )
+  where
 
 import Prelude
 
@@ -23,7 +25,9 @@ import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)
 import Data.Show.Generic (genericShow)
 import Erl.Data.List (List)
-import Erl.Oracle.Types.Common (AvailabilityDomainId, CapacityReservationId, CompartmentId, DedicatedVmHostId, DefinedTags, ExtendedMetadata, FreeformTags, ImageId, InstanceId, LaunchMode, Metadata, Shape)
+import Erl.Data.Map (Map)
+import Erl.Oracle.Shared (BaseRequest)
+import Erl.Oracle.Types.Common (AvailabilityDomainId, CapacityReservationId, CompartmentId, DedicatedVmHostId, DefinedTags, ExtendedMetadata, FaultDomainId(..), FreeformTags, ImageId, InstanceId, LaunchMode, Metadata, Shape, SubnetId(..), VolumeId(..))
 import Foreign (unsafeFromForeign)
 import Partial.Unsafe (unsafeCrashWith)
 import Simple.JSON (class ReadForeign, class WriteForeign, write)
@@ -189,3 +193,38 @@ type InstanceDescription =
   , timeCreated :: String
   , timeMaintenanceRebootDue :: Maybe String
   }
+
+type LaunchInstanceRequest = BaseRequest
+  ( availabilityDomain :: AvailabilityDomainId
+  , compartment :: CompartmentId
+  , shape :: Shape
+  , subnet :: SubnetId
+  , capacityReservation :: Maybe CapacityReservationId
+  , dedicatedVmHost :: Maybe DedicatedVmHostId
+  , definedTags :: Maybe DefinedTags
+  , displayName :: Maybe String
+  , extendedMetadata :: Maybe ExtendedMetadata
+  , faultDomain :: Maybe FaultDomainId
+  , freeformTags :: Maybe (Map String String)
+  , hostname :: Maybe String
+  , imageId :: Maybe ImageId
+  , launchOptions :: Maybe LaunchOptions
+  , instanceOptions :: Maybe InstanceOptions
+  , availabilityConfig :: Maybe AvailabilityConfig
+  , preemptibleInstanceConfig :: Maybe PreemptibleInstanceConfig
+  , metadata :: Maybe (Map String String)
+  , agentConfig :: Maybe AgentConfig
+  , shapeConfig :: Maybe ShapeConfig
+  , isPvEncryptionInTransitEnabled :: Maybe Boolean
+  , ipxeScript :: Maybe String
+  , platformConfig :: Maybe PlatformConfig
+  , vnicDisplayName :: Maybe String
+  , nsgIds :: Maybe (List String)
+  , assignPublicIp :: Maybe Boolean
+  , privateIp :: Maybe String
+  , skipSourceDestCheck :: Maybe Boolean
+  , userData :: Maybe String
+  , sshAuthorizedKeys :: Maybe String
+  , sourceBootVolume :: Maybe VolumeId
+  , bootVolumeSizeInGbps :: Maybe Int
+  )
