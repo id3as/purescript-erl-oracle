@@ -10,23 +10,24 @@ import Data.Maybe (Maybe(..), isJust)
 import Data.Time.Duration (Milliseconds(..))
 import Effect.Class (liftEffect)
 import Erl.Atom (atom)
-import Erl.Data.List (List, head, (:))
+import Erl.Data.List (List, head, (:), filter)
 import Erl.Data.List as List
 import Erl.Kernel.Application as Application
 import Erl.Kernel.Erlang (sleep)
 import Erl.Oracle.AvailabilityDomain (defaultListAvailabilityDomainRequest, listAvailabilityDomains)
-import Erl.Oracle.Types.AvailabilityDomain (AvailabilityDomain)
 import Erl.Oracle.CapacityReservation (defaultListCapacityReservationRequest, listCapacityReservations)
 import Erl.Oracle.Compartments (defaultListCompartmentsRequest, listCompartments)
 import Erl.Oracle.Images (defaultListImagesRequest, listImages)
-import Erl.Oracle.Instance (defaultLaunchInstanceRequest, defaultTerminateInstanceRequest, launchInstance, terminateInstance)
+import Erl.Oracle.Instance (defaultLaunchInstanceRequest, defaultListInstancesRequest, defaultTerminateInstanceRequest, launchInstance, listInstances, terminateInstance)
 import Erl.Oracle.Shape (defaultListShapesRequest, listShapes)
 import Erl.Oracle.ShapeCompatibility (defaultListImageShapeCompatibilityRequest, listCompatibleShapes)
 import Erl.Oracle.Subnet (createSubnet, defaultCreateSubnetRequest, defaultDeleteSubnetRequest, defaultListSubnetsRequest, deleteSubnet, listSubnets)
-import Erl.Oracle.Types.Subnet (SubnetDetails)
+import Erl.Oracle.Types.AvailabilityDomain (AvailabilityDomain)
 import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId(..), ImageId(..), Shape(..), OciProfile)
-import Erl.Oracle.VirtualCloudNetwork (createVcn, defaultCreateVcnRequest, defaultDeleteVcnRequest, defaultListVcnsRequest, deleteVcn, listVcns)
+import Erl.Oracle.Types.Instance (InstanceLifecycleState(..))
+import Erl.Oracle.Types.Subnet (SubnetDetails)
 import Erl.Oracle.Types.VirtualCloudNetwork (VcnDetails)
+import Erl.Oracle.VirtualCloudNetwork (createVcn, defaultCreateVcnRequest, defaultDeleteVcnRequest, defaultListVcnsRequest, deleteVcn, listVcns)
 import Erl.Process (unsafeRunProcessM)
 import Erl.Test.EUnit (TestF, TestSet, collectTests, suite, test, timeout)
 import Foreign (ForeignError)
@@ -71,6 +72,17 @@ ociTests = do
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "At least 1 image offerings" $ (length actualList) >= 1
+              Left _ -> do
+                liftEffect $ assertEqual { expected: Right List.nil, actual }
+  suite "list instances" do
+    test "Can parse response" do
+      void $ Application.ensureAllStarted $ atom "erlexec"
+      unsafeRunProcessM
+        $ do
+            actual <- liftEffect $ listInstances $ defaultListInstancesRequest profile Nothing
+            case actual of
+              Right actualList -> do
+                liftEffect $ assertTrue' "No running instances" $ (length $ filter (\{ lifecycleState } -> lifecycleState /= Terminated) actualList) == 0
               Left _ -> do
                 liftEffect $ assertEqual { expected: Right List.nil, actual }
   suite "list availability domains" do

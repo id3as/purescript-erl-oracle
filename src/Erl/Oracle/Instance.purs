@@ -347,11 +347,10 @@ fromListInstancesResponse { "data": entries } = ado
   in instances
 
 listInstances :: ListInstancesRequest -> Effect (Either MultipleErrors (List InstanceDescription))
-listInstances req@{ compartment, availabilityDomain } = do
+listInstances req@{ availabilityDomain } = do
   let
-    cli = ociCliBase req $ " compute capacity-reservation list"
+    cli = ociCliBase req $ " compute instance list"
       <> " --all "
-      <> (" --compartment-id " <> unwrap compartment)
       <> (fromMaybe "" $ (\r -> " --availability-domain " <> r) <$> unwrap <$> availabilityDomain)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromListInstancesResponse =<< readJSON' =<< outputJson
