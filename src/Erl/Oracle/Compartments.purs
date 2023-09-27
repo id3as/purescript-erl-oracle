@@ -8,22 +8,22 @@ import Prelude
 
 import Control.Monad.Except (runExcept)
 import Data.Either (Either)
-import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (unwrap)
+import Data.Maybe (Maybe, fromMaybe)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types.Common (CompartmentId(..), DefinedTags, FreeformTags)
+import Erl.Oracle.Types.Common (CompartmentId(..), DefinedTags, FreeformTags, OciProfile)
 import Erl.Oracle.Types.Compartments (CompartmentLifecycleState, CompartmentDescription)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON')
 
-type ListCompartmentsRequest = BaseRequest (compartment :: Maybe CompartmentId)
+type ListCompartmentsRequest = BaseRequest ()
 
-defaultListCompartmentsRequest :: ListCompartmentsRequest
-defaultListCompartmentsRequest =
-  { compartment: Nothing
+defaultListCompartmentsRequest :: OciProfile -> Maybe CompartmentId -> ListCompartmentsRequest
+defaultListCompartmentsRequest profile@{ defaultCompartment } compartment =
+  { compartment: fromMaybe defaultCompartment compartment
+  , profile
   }
 
 type CompartmentDescriptionInt =
@@ -75,11 +75,10 @@ fromCompartmentResponseInt { "data": compartmentData } = ado
   in compartments
 
 listCompartments :: ListCompartmentsRequest -> Effect (Either MultipleErrors (List CompartmentDescription))
-listCompartments req@{ compartment } = do
+listCompartments req = do
   let
     cli = ociCliBase req "iam compartment list "
       <> " --all "
-      <> (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
 
   outputJson <- runOciCli cli
   pure $ runExcept $ fromCompartmentResponseInt =<< readJSON' =<< outputJson

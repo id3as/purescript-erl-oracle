@@ -9,24 +9,22 @@ import Prelude
 import Control.Monad.Except (runExcept)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Data.Map (Map)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types.Common (CompartmentId, Shape(..))
+import Erl.Oracle.Types.Common (CompartmentId, Shape(..), OciProfile)
 import Erl.Oracle.Types.Shape (AlternativeObject, MaxVnicAttachmentOptions, MemoryOptions, OcpuOptions, PercentageOfCoresEnabledOptions, PlatformConfigOptions, ServiceEnabledOptions, ShapeDescription, NetworkingBandwidthOptions)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON')
 
-type ListShapesRequest = BaseRequest
-  ( compartment :: Maybe CompartmentId
-  )
+type ListShapesRequest = BaseRequest ()
 
-defaultListShapesRequest :: ListShapesRequest
-defaultListShapesRequest =
-  { compartment: Nothing
+defaultListShapesRequest :: OciProfile -> Maybe CompartmentId -> ListShapesRequest
+defaultListShapesRequest profile@{ defaultCompartment } compartment =
+  { compartment: fromMaybe defaultCompartment compartment
+  , profile
   }
 
 type AlternativeObjectInt =
@@ -343,10 +341,9 @@ fromShapesResponseInt { "data": shapeData } = ado
   in shapes
 
 listShapes :: ListShapesRequest -> Effect (Either MultipleErrors (List ShapeDescription))
-listShapes req@{ compartment } = do
+listShapes req = do
   let
     cli = ociCliBase req "compute shape list"
       <> " --all "
-      <> (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromShapesResponseInt =<< readJSON' =<< outputJson

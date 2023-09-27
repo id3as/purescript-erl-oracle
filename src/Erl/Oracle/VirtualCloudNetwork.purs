@@ -17,24 +17,23 @@ import Data.Either (Either)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
-import Debug (spy)
 import Effect (Effect)
 import Erl.Data.List (List, null)
-import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli, escapeJson)
-import Erl.Oracle.Types.Common (CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, RouteTableId, SecurityListId, VcnId)
+import Erl.Oracle.Shared (BaseRequest, escapeJson, ociCliBase, ociCliBase', runOciCli)
+import Erl.Oracle.Types.Common (CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, RouteTableId, SecurityListId, VcnId, OciProfile)
 import Erl.Oracle.Types.VirtualCloudNetwork (VcnLifecycleState, VcnDetails)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON', writeJSON)
 
 type ListVcnsRequest = BaseRequest
-  ( compartment :: CompartmentId
-  , lifecycleState :: Maybe VcnLifecycleState
+  ( lifecycleState :: Maybe VcnLifecycleState
   )
 
-defaultListVcnsRequest :: CompartmentId -> ListVcnsRequest
-defaultListVcnsRequest compartment =
-  { compartment
+defaultListVcnsRequest :: OciProfile -> Maybe CompartmentId -> ListVcnsRequest
+defaultListVcnsRequest profile@{ defaultCompartment } compartment =
+  { compartment: fromMaybe defaultCompartment compartment
   , lifecycleState: Nothing
+  , profile
   }
 
 type ListVcnsResponse =
@@ -110,11 +109,10 @@ fromListVcnsResponse { "data": entries } = ado
   in vcns
 
 listVcns :: ListVcnsRequest -> Effect (Either MultipleErrors (List VcnDetails))
-listVcns req@{ compartment } = do
+listVcns req = do
   let
     cli = ociCliBase req $ " network vcn list"
       <> " --all "
-      <> (" --compartment-id " <> unwrap compartment)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromListVcnsResponse =<< readJSON' =<< outputJson
 
@@ -128,8 +126,7 @@ fromCreateVcnResponse { "data": details } = ado
   in resp
 
 type CreateVcnRequest = BaseRequest
-  ( compartment :: CompartmentId
-  , cidrBlocks :: Maybe (List String)
+  ( cidrBlocks :: Maybe (List String)
   , definedTags :: Maybe DefinedTags
   , displayName :: Maybe String
   , dnsLabel :: Maybe String
@@ -137,15 +134,16 @@ type CreateVcnRequest = BaseRequest
   , isIpv6Enabled :: Maybe Boolean
   )
 
-defaultCreateVcnRequest :: CompartmentId -> CreateVcnRequest
-defaultCreateVcnRequest compartment =
-  { compartment
+defaultCreateVcnRequest :: OciProfile -> Maybe CompartmentId -> CreateVcnRequest
+defaultCreateVcnRequest profile@{ defaultCompartment } compartment =
+  { compartment: fromMaybe defaultCompartment compartment
   , cidrBlocks: Nothing
   , definedTags: Nothing
   , displayName: Nothing
   , dnsLabel: Nothing
   , freeformTags: Nothing
   , isIpv6Enabled: Nothing
+  , profile
   }
 
 createVcn :: CreateVcnRequest -> Effect (Either MultipleErrors VcnDetails)
@@ -164,7 +162,7 @@ createVcn
     options =
       "network vcn create"
         <> (" --compartment-id " <> unwrap compartment)
-        <> (fromMaybe "" $ (\r -> " --cidr-blocks \"" <> r <> "\"") <$> escapeJson <$> spy "json" writeJSON <$> cidrBlocks)
+        <> (fromMaybe "" $ (\r -> " --cidr-blocks \"" <> r <> "\"") <$> escapeJson <$> writeJSON <$> cidrBlocks)
         <> (fromMaybe "" $ (\r -> " --defined-tags '" <> r <> "'") <$> writeJSON <$> definedTags)
         <> (fromMaybe "" $ (\r -> " --display-name '" <> r <> "'") <$> displayName)
         <> (fromMaybe "" $ (\r -> " --dns-label '" <> r <> "'") <$> dnsLabel)
@@ -180,9 +178,11 @@ type DeleteVcnRequest = BaseRequest
   ( vcnId :: VcnId
   )
 
-defaultDeleteVcnRequest :: VcnId -> DeleteVcnRequest
-defaultDeleteVcnRequest vcn =
+defaultDeleteVcnRequest :: OciProfile -> Maybe CompartmentId -> VcnId -> DeleteVcnRequest
+defaultDeleteVcnRequest profile@{ defaultCompartment } compartment vcn =
   { vcnId: vcn
+  , compartment: fromMaybe defaultCompartment compartment
+  , profile
   }
 
 type EmptyResponse =
@@ -195,18 +195,14 @@ fromEmptyResponse { "data": d } = ado
   in { success }
 
 deleteVcn :: DeleteVcnRequest -> Effect (Either MultipleErrors { success :: Boolean })
-deleteVcn
-  req@
-    { vcnId
-    } = do
-
+deleteVcn req@{ vcnId } = do
   let
     options =
       "network vcn delete"
         <> " --force "
         <> (" --vcn-id " <> unwrap vcnId)
 
-    cli = ociCliBase req options
+    cli = ociCliBase' req options
 
   outputJson <- runOciCli cli
   pure $ runExcept $ fromEmptyResponse =<< readJSON' =<< outputJson

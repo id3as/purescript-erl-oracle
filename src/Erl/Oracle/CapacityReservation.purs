@@ -16,7 +16,7 @@ import Erl.Data.List (List)
 import Erl.Data.List as List
 import Erl.Data.Map (Map)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), FaultDomainId(..), HpcIslandId(..), NetworkBlockId(..), Shape(..))
+import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), FaultDomainId(..), HpcIslandId(..), NetworkBlockId(..), Shape(..), OciProfile)
 import Erl.Oracle.Types.CapacityReservation (CapacityReservation, CapacityReservationLifecycleState, ClusterConfigDetails, InstanceReservationShapeDetails, InstanceReservationConfig)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON')
@@ -155,22 +155,21 @@ fromCapacityReservationResponse resp =
     Nothing -> pure $ List.nil
 
 type ListCapactityReservationRequest = BaseRequest
-  ( compartment :: Maybe CompartmentId
-  , availabilityDomain :: Maybe AvailabilityDomainId
+  ( availabilityDomain :: Maybe AvailabilityDomainId
   )
 
-defaultListCapacityReservationRequest :: ListCapactityReservationRequest
-defaultListCapacityReservationRequest =
-  { compartment: Nothing
+defaultListCapacityReservationRequest :: OciProfile -> Maybe CompartmentId -> ListCapactityReservationRequest
+defaultListCapacityReservationRequest profile@{ defaultCompartment } compartment =
+  { compartment: fromMaybe defaultCompartment compartment
   , availabilityDomain: Nothing
+  , profile
   }
 
 listCapacityReservations :: ListCapactityReservationRequest -> Effect (Either MultipleErrors (List CapacityReservation))
-listCapacityReservations req@{ compartment, availabilityDomain } = do
+listCapacityReservations req@{ availabilityDomain } = do
   let
     cli = ociCliBase req $ " compute capacity-reservation list"
       <> " --all "
-      <> (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
       <> (fromMaybe "" $ (\r -> " --availability-domain " <> r) <$> unwrap <$> availabilityDomain)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromCapacityReservationResponse =<< readJSON' =<< outputJson

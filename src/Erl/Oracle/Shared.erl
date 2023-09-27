@@ -6,11 +6,11 @@
 
 runCommand(Cmd) ->
     fun() ->
-            %%io:format(user, "Running: ~p~n", [Cmd]),
+            %% io:format(user, "~nRunning: ~p~n", [Cmd]),
             case exec:run(binary_to_list(Cmd), [stdout, {stderr, stdout}, sync]) of
                 {ok, Output} ->
                     Stdout = get_value(stdout, <<"{\"data\" : []}">>, Output),
-                    %%io:format(user, "Result: ~p~n", [Stdout]),
+                    %% io:format(user, "~nResult: ~p~n", [Stdout]),
                     {right, iolist_to_binary(Stdout)};
 
                 {error, Output} ->

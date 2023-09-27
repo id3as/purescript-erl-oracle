@@ -8,13 +8,13 @@ import Prelude
 
 import Control.Monad.Except (runExcept)
 import Data.Either (Either)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
-import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types.Common (ImageId(..), Shape(..))
+import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
+import Erl.Oracle.Types.Common (CompartmentId, ImageId(..), OciProfile, Shape(..))
 import Erl.Oracle.Types.ShapeCompatibility (ImageMemoryConstraints, ImageShapeCompatibility, ImageOcpuConstraints)
 import Foreign (MultipleErrors, F)
 import Simple.JSON (readJSON')
@@ -23,8 +23,12 @@ type ListImageShapeCompatibilityRequest = BaseRequest
   ( imageId :: ImageId
   )
 
-defaultListImageShapeCompatibilityRequest :: ImageId -> ListImageShapeCompatibilityRequest
-defaultListImageShapeCompatibilityRequest imageId = { imageId }
+defaultListImageShapeCompatibilityRequest :: OciProfile -> Maybe CompartmentId -> ImageId -> ListImageShapeCompatibilityRequest
+defaultListImageShapeCompatibilityRequest profile@{ defaultCompartment } compartment imageId =
+  { imageId
+  , compartment: fromMaybe defaultCompartment compartment
+  , profile
+  }
 
 type ImageMemoryConstraintsInt =
   { "max-in-gbs" :: Maybe Int
@@ -85,7 +89,7 @@ fromImageShapeCompatibilityResponse { "data": entries } = ado
 listCompatibleShapes :: ListImageShapeCompatibilityRequest -> Effect (Either MultipleErrors (List ImageShapeCompatibility))
 listCompatibleShapes req@{ imageId } = do
   let
-    cli = ociCliBase req $ "compute image-shape-compatibility-entry list "
+    cli = ociCliBase' req $ "compute image-shape-compatibility-entry list "
       <> "--all "
       <> ("--image-id " <> unwrap imageId)
   outputJson <- runOciCli cli

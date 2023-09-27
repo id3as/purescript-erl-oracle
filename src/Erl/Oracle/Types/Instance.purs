@@ -16,8 +16,7 @@ module Erl.Oracle.Types.Instance
   , PreemptibleInstanceConfig
   , PreemptionAction
   , ShapeConfig
-  )
-  where
+  ) where
 
 import Prelude
 
@@ -27,7 +26,7 @@ import Data.Show.Generic (genericShow)
 import Erl.Data.List (List)
 import Erl.Data.Map (Map)
 import Erl.Oracle.Shared (BaseRequest)
-import Erl.Oracle.Types.Common (AvailabilityDomainId, CapacityReservationId, CompartmentId, DedicatedVmHostId, DefinedTags, ExtendedMetadata, FaultDomainId(..), FreeformTags, ImageId, InstanceId, LaunchMode, Metadata, Shape, SubnetId(..), VolumeId(..))
+import Erl.Oracle.Types.Common (AvailabilityDomainId, CapacityReservationId, CompartmentId, DedicatedVmHostId, DefinedTags, ExtendedMetadata, FaultDomainId, FreeformTags, ImageId, InstanceId, LaunchMode, Metadata, Shape, SubnetId, VolumeId)
 import Foreign (unsafeFromForeign)
 import Partial.Unsafe (unsafeCrashWith)
 import Simple.JSON (class ReadForeign, class WriteForeign, write)
@@ -196,7 +195,6 @@ type InstanceDescription =
 
 type LaunchInstanceRequest = BaseRequest
   ( availabilityDomain :: AvailabilityDomainId
-  , compartment :: CompartmentId
   , shape :: Shape
   , subnet :: SubnetId
   , capacityReservation :: Maybe CapacityReservationId

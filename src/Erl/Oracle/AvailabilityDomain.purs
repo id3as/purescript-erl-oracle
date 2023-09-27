@@ -8,23 +8,21 @@ import Prelude
 import Control.Monad.Except (runExcept)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CompartmentId(..))
 import Erl.Oracle.Types.AvailabilityDomain (AvailabilityDomain)
+import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CompartmentId(..), OciProfile)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON')
 
-type ListAvailabilityDomainRequest = BaseRequest
-  ( compartment :: Maybe CompartmentId
-  )
+type ListAvailabilityDomainRequest = BaseRequest ()
 
-defaultListAvailabilityDomainRequest :: ListAvailabilityDomainRequest
-defaultListAvailabilityDomainRequest =
-  { compartment: Nothing
+defaultListAvailabilityDomainRequest :: OciProfile -> Maybe CompartmentId -> ListAvailabilityDomainRequest
+defaultListAvailabilityDomainRequest profile@{ defaultCompartment } compartment =
+  { compartment: fromMaybe defaultCompartment compartment
+  , profile
   }
 
 -- This returns an id and a name but the name is used in other APIs not the id, so pretend that the
@@ -55,10 +53,9 @@ fromAvailabilityDomainResponse { "data": entries } = ado
   in domains
 
 listAvailabilityDomains :: ListAvailabilityDomainRequest -> Effect (Either MultipleErrors (List AvailabilityDomain))
-listAvailabilityDomains req@{ compartment } = do
+listAvailabilityDomains req = do
   let
     cli = ociCliBase req $ "iam availability-domain list"
       <> " --all "
-      <> (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromAvailabilityDomainResponse =<< readJSON' =<< outputJson

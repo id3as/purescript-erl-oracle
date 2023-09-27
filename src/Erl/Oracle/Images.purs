@@ -14,18 +14,17 @@ import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types.Common (CompartmentId(..), DefinedTags, ImageId(..), FreeformTags)
+import Erl.Oracle.Types.Common (CompartmentId(..), DefinedTags, ImageId(..), FreeformTags, OciProfile)
 import Erl.Oracle.Types.Images (ImageLifecycleState, InstanceAgentFeatures, LaunchOptions, ImageDescription)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON')
 
-type ListImagesRequest = BaseRequest
-  ( compartment :: Maybe CompartmentId
-  )
+type ListImagesRequest = BaseRequest ()
 
-defaultListImagesRequest :: ListImagesRequest
-defaultListImagesRequest =
-  { compartment: Nothing
+defaultListImagesRequest :: OciProfile -> Maybe CompartmentId -> ListImagesRequest
+defaultListImagesRequest profile@{ defaultCompartment } compartment =
+  { compartment: fromMaybe defaultCompartment compartment
+  , profile
   }
 
 type LaunchOptionsInt =
@@ -149,7 +148,6 @@ listImages req@{ compartment } = do
   let
     cli = ociCliBase req "compute image list "
       <> " --all "
-      <> (fromMaybe "" $ (\r -> " --compartment-id " <> r) <$> unwrap <$> compartment)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromImagesResponseInt =<< readJSON' =<< outputJson
 

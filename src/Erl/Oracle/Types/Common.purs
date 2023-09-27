@@ -270,3 +270,10 @@ type DefinedTags = Map String (Map String String)
 type ExtendedMetadata = Map String (Map String String)
 type FreeformTags = Map String String
 type Metadata = Map String String
+
+
+type OciProfile =
+  { defaultCompartment :: CompartmentId
+  , ociProfileName :: String
+  , configFile :: String
+  }

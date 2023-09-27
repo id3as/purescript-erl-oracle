@@ -19,13 +19,12 @@ import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.Binary.IOData (fromString)
 import Erl.Data.List (List)
-import Erl.Data.Map (Map)
 import Erl.File (writeFile)
 import Erl.FileLib (mkTemp)
-import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FaultDomainId, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, Shape(..), SubnetId, VolumeId, ExtendedMetadata)
+import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
+import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, Shape(..), SubnetId, ExtendedMetadata, OciProfile)
 import Erl.Oracle.Types.Images (LaunchOptions)
-import Erl.Oracle.Types.Instance (AgentConfig, AvailabilityConfig, InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceDescription, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, PreemptibleInstanceConfig, PreemptionAction, ShapeConfig, PlatformConfig)
+import Erl.Oracle.Types.Instance (InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceDescription, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, PreemptibleInstanceConfig, PreemptionAction, LaunchInstanceRequest)
 import Foreign (F, ForeignError, MultipleErrors)
 import Simple.JSON (readJSON', writeJSON)
 
@@ -33,19 +32,19 @@ type ListInstancesRequest = BaseRequest
   ( availabilityDomain :: Maybe AvailabilityDomainId
   , capacityReservation :: Maybe CapacityReservationId
   , computeCluster :: Maybe ComputeClusterId
-  , compartment :: CompartmentId
   , displayName :: Maybe String
   , lifecycleState :: Maybe InstanceLifecycleState
   )
 
-defaultListInstancesRequest :: CompartmentId -> ListInstancesRequest
-defaultListInstancesRequest compartment =
+defaultListInstancesRequest :: OciProfile -> Maybe CompartmentId -> ListInstancesRequest
+defaultListInstancesRequest profile@{ defaultCompartment } compartment =
   { availabilityDomain: Nothing
   , capacityReservation: Nothing
   , computeCluster: Nothing
-  , compartment
+  , compartment: fromMaybe defaultCompartment compartment
   , displayName: Nothing
   , lifecycleState: Nothing
+  , profile
   }
 
 type InstanceAgentPluginConfigDetailsInt =
@@ -357,45 +356,10 @@ listInstances req@{ compartment, availabilityDomain } = do
   outputJson <- runOciCli cli
   pure $ runExcept $ fromListInstancesResponse =<< readJSON' =<< outputJson
 
-type LaunchInstanceRequest = BaseRequest
-  ( availabilityDomain :: AvailabilityDomainId
-  , compartment :: CompartmentId
-  , shape :: Shape
-  , subnet :: SubnetId
-  , capacityReservation :: Maybe CapacityReservationId
-  , dedicatedVmHost :: Maybe DedicatedVmHostId
-  , definedTags :: Maybe DefinedTags
-  , displayName :: Maybe String
-  , extendedMetadata :: Maybe ExtendedMetadata
-  , faultDomain :: Maybe FaultDomainId
-  , freeformTags :: Maybe (Map String String)
-  , hostname :: Maybe String
-  , imageId :: Maybe ImageId
-  , launchOptions :: Maybe LaunchOptions
-  , instanceOptions :: Maybe InstanceOptions
-  , availabilityConfig :: Maybe AvailabilityConfig
-  , preemptibleInstanceConfig :: Maybe PreemptibleInstanceConfig
-  , metadata :: Maybe (Map String String)
-  , agentConfig :: Maybe AgentConfig
-  , shapeConfig :: Maybe ShapeConfig
-  , isPvEncryptionInTransitEnabled :: Maybe Boolean
-  , ipxeScript :: Maybe String
-  , platformConfig :: Maybe PlatformConfig
-  , vnicDisplayName :: Maybe String
-  , nsgIds :: Maybe (List String)
-  , assignPublicIp :: Maybe Boolean
-  , privateIp :: Maybe String
-  , skipSourceDestCheck :: Maybe Boolean
-  , userData :: Maybe String
-  , sshAuthorizedKeys :: Maybe String
-  , sourceBootVolume :: Maybe VolumeId
-  , bootVolumeSizeInGbps :: Maybe Int
-  )
-
-defaultLaunchInstanceRequest :: AvailabilityDomainId -> CompartmentId -> Shape -> SubnetId -> LaunchInstanceRequest
-defaultLaunchInstanceRequest availabilityDomain compartment shape subnet =
+defaultLaunchInstanceRequest :: OciProfile -> Maybe CompartmentId -> AvailabilityDomainId -> Shape -> SubnetId -> LaunchInstanceRequest
+defaultLaunchInstanceRequest profile@{ defaultCompartment } compartment availabilityDomain shape subnet =
   { availabilityDomain
-  , compartment
+  , compartment: fromMaybe defaultCompartment compartment
   , shape
   , subnet
   , capacityReservation: Nothing
@@ -426,6 +390,7 @@ defaultLaunchInstanceRequest availabilityDomain compartment shape subnet =
   , sshAuthorizedKeys: Nothing
   , sourceBootVolume: Nothing
   , bootVolumeSizeInGbps: Nothing
+  , profile
   }
 
 type LaunchInstanceResponse =
@@ -439,7 +404,6 @@ launchInstance :: LaunchInstanceRequest -> Effect (Either MultipleErrors Instanc
 launchInstance
   req@
     { availabilityDomain
-    , compartment
     , shape
     , capacityReservation
     , dedicatedVmHost
@@ -511,7 +475,6 @@ launchInstance
     cli :: String
     cli = ociCliBase req $ "compute instance launch "
       <> (" --availability-domain " <> unwrap availabilityDomain)
-      <> (" --compartment-id " <> unwrap compartment)
       <> (" --shape " <> unwrap shape)
       <> (" --subnet-id " <> unwrap subnet)
       <> (fromMaybe "" $ (\r -> " --capacity-reservation-id " <> r) <$> unwrap <$> capacityReservation)
@@ -551,9 +514,11 @@ type TerminateInstanceRequest = BaseRequest
   ( instanceId :: InstanceId
   )
 
-defaultTerminateInstanceRequest :: InstanceId -> TerminateInstanceRequest
-defaultTerminateInstanceRequest instanceId =
+defaultTerminateInstanceRequest :: OciProfile -> Maybe CompartmentId -> InstanceId -> TerminateInstanceRequest
+defaultTerminateInstanceRequest profile@{ defaultCompartment } compartment instanceId =
   { instanceId
+  , profile
+  , compartment: fromMaybe defaultCompartment compartment
   }
 
 type TerminateInstanceResponse =
@@ -566,7 +531,7 @@ fromTerminateInstanceResponse { "data": _resp } = pure true
 terminateInstance :: TerminateInstanceRequest -> Effect (Either MultipleErrors Boolean)
 terminateInstance req@{ instanceId } = do
   let
-    cli = ociCliBase req "compute instance terminate --force " <>
+    cli = ociCliBase' req "compute instance terminate --force " <>
       (" --instance-id " <> unwrap instanceId)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromTerminateInstanceResponse =<< readJSON' =<< outputJson

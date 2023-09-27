@@ -19,23 +19,23 @@ import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
-import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
-import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, RouteTableId, SecurityListId, SubnetId, VcnId)
+import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
+import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, RouteTableId, SecurityListId, SubnetId, VcnId, OciProfile)
 import Erl.Oracle.Types.Subnet (SubnetLifecycleState, SubnetDetails)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON')
 
 type ListSubnetsRequest = BaseRequest
-  ( compartment :: CompartmentId
-  , vcn :: Maybe VcnId
+  ( vcn :: Maybe VcnId
   , displayName :: Maybe String
   )
 
-defaultListSubnetsRequest :: CompartmentId -> ListSubnetsRequest
-defaultListSubnetsRequest compartment =
-  { compartment
+defaultListSubnetsRequest :: OciProfile -> Maybe CompartmentId -> ListSubnetsRequest
+defaultListSubnetsRequest profile@{ defaultCompartment } compartment =
+  { compartment: fromMaybe defaultCompartment compartment
   , vcn: Nothing
   , displayName: Nothing
+  , profile
   }
 
 type ListSubnetResponse =
@@ -128,11 +128,13 @@ type CreateSubnetRequest = BaseRequest
   , displayName :: Maybe String
   )
 
-defaultCreateSubnetRequest :: String -> VcnId -> CreateSubnetRequest
-defaultCreateSubnetRequest cidrBlock vcnId =
+defaultCreateSubnetRequest :: OciProfile -> Maybe CompartmentId -> String -> VcnId -> CreateSubnetRequest
+defaultCreateSubnetRequest profile@{ defaultCompartment } compartment cidrBlock vcnId =
   { cidrBlock
   , vcnId
   , displayName: Nothing
+  , compartment: fromMaybe defaultCompartment compartment
+  , profile
   }
 
 type CreateSubnetResponseInt =
@@ -168,9 +170,11 @@ type DeleteSubnetRequest = BaseRequest
   ( subnetId :: SubnetId
   )
 
-defaultDeleteSubnetRequest :: SubnetId -> DeleteSubnetRequest
-defaultDeleteSubnetRequest subnetId =
+defaultDeleteSubnetRequest :: OciProfile -> Maybe CompartmentId -> SubnetId -> DeleteSubnetRequest
+defaultDeleteSubnetRequest profile@{ defaultCompartment } compartment subnetId =
   { subnetId
+  , compartment: fromMaybe defaultCompartment compartment
+  , profile
   }
 
 type DeleteSubnetResponse =
@@ -183,7 +187,7 @@ fromTerminateSubnetResponse { "data": _resp } = pure true
 deleteSubnet :: DeleteSubnetRequest -> Effect (Either MultipleErrors Boolean)
 deleteSubnet req@{ subnetId } = do
   let
-    cli = ociCliBase req "network subnet delete --force " <>
+    cli = ociCliBase' req "network subnet delete --force " <>
       (" --subnet-id " <> unwrap subnetId)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromTerminateSubnetResponse =<< readJSON' =<< outputJson

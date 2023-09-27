@@ -24,7 +24,7 @@ import Erl.Oracle.Shape (defaultListShapesRequest, listShapes)
 import Erl.Oracle.ShapeCompatibility (defaultListImageShapeCompatibilityRequest, listCompatibleShapes)
 import Erl.Oracle.Subnet (createSubnet, defaultCreateSubnetRequest, defaultDeleteSubnetRequest, defaultListSubnetsRequest, deleteSubnet, listSubnets)
 import Erl.Oracle.Types.Subnet (SubnetDetails)
-import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId(..), ImageId(..), Shape(..))
+import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId(..), ImageId(..), Shape(..), OciProfile)
 import Erl.Oracle.VirtualCloudNetwork (createVcn, defaultCreateVcnRequest, defaultDeleteVcnRequest, defaultListVcnsRequest, deleteVcn, listVcns)
 import Erl.Oracle.Types.VirtualCloudNetwork (VcnDetails)
 import Erl.Process (unsafeRunProcessM)
@@ -39,15 +39,13 @@ main_test_ =
 -- These tests won't work unless the oci CLI is already configured
 ociTests :: Free TestF Unit
 ociTests = do
-  let
-    -- You'll want to use your own tenancy
-    compartment = CompartmentId "ocid1.tenancy.oc1..aaaaaaaajycivti4bmq4kignjlabrv2egvp7abj676tzkeefavboxavstx7a"
   suite "list compartments" do
     test "Can parse response" do
       void $ Application.ensureAllStarted $ atom "erlexec"
       unsafeRunProcessM
         $ do
-            actual <- liftEffect $ listCompartments defaultListCompartmentsRequest
+            -- Look at the parent compartment
+            actual <- liftEffect $ listCompartments $ defaultListCompartmentsRequest profile $ Just (CompartmentId "ocid1.tenancy.oc1..aaaaaaaajycivti4bmq4kignjlabrv2egvp7abj676tzkeefavboxavstx7a")
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "At least 1 type offerings" $ (length actualList) >= 1
@@ -58,7 +56,7 @@ ociTests = do
       void $ Application.ensureAllStarted $ atom "erlexec"
       unsafeRunProcessM
         $ do
-            actual <- liftEffect $ listShapes defaultListShapesRequest
+            actual <- liftEffect $ listShapes $ defaultListShapesRequest profile Nothing
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "At least 1 shape offerings" $ (length actualList) >= 1
@@ -69,7 +67,7 @@ ociTests = do
       void $ Application.ensureAllStarted $ atom "erlexec"
       unsafeRunProcessM
         $ do
-            actual <- liftEffect $ listImages defaultListImagesRequest
+            actual <- liftEffect $ listImages $ defaultListImagesRequest profile Nothing
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "At least 1 image offerings" $ (length actualList) >= 1
@@ -80,7 +78,7 @@ ociTests = do
       void $ Application.ensureAllStarted $ atom "erlexec"
       unsafeRunProcessM
         $ do
-            actual <- liftEffect $ listAvailabilityDomains $ defaultListAvailabilityDomainRequest
+            actual <- liftEffect $ listAvailabilityDomains $ defaultListAvailabilityDomainRequest profile Nothing
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "At least 1 image offerings" $ (length actualList) >= 1
@@ -91,7 +89,7 @@ ociTests = do
       void $ Application.ensureAllStarted $ atom "erlexec"
       unsafeRunProcessM
         $ do
-            actual <- liftEffect $ listCapacityReservations defaultListCapacityReservationRequest
+            actual <- liftEffect $ listCapacityReservations $ defaultListCapacityReservationRequest profile Nothing
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "No reservations by default" $ (length actualList) == 0
@@ -103,7 +101,7 @@ ociTests = do
       unsafeRunProcessM
         $ do
             -- Canonical-Ubuntu-22.04-aarch64-2023.05.19-0
-            actual <- liftEffect $ listCompatibleShapes $ defaultListImageShapeCompatibilityRequest $ ImageId "ocid1.image.oc1.uk-london-1.aaaaaaaayc2h4cb5lcvcjh3dtm7m6mqkmtkz2rbz4vrur27gqzniw2raxevq"
+            actual <- liftEffect $ listCompatibleShapes $ defaultListImageShapeCompatibilityRequest profile Nothing (ImageId "ocid1.image.oc1.uk-london-1.aaaaaaaayc2h4cb5lcvcjh3dtm7m6mqkmtkz2rbz4vrur27gqzniw2raxevq")
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "At least 1 compatible shape" $ (length actualList) >= 1
@@ -115,7 +113,7 @@ ociTests = do
       void $ Application.ensureAllStarted $ atom "erlexec"
       unsafeRunProcessM
         $ do
-            actual <- liftEffect $ createVcn $ (defaultCreateVcnRequest compartment)
+            actual <- liftEffect $ createVcn $ (defaultCreateVcnRequest profile Nothing)
               { cidrBlocks = Just $ "192.168.0.0/24" : List.nil
               , displayName = Just "unit test vcn"
               , dnsLabel = Just "unittestvcn"
@@ -124,7 +122,7 @@ ociTests = do
             case actual of
               Right vcn -> do
                 liftEffect $ assertTrue' "VCN has been created" $ isRight actual
-                deleteResult <- liftEffect $ deleteVcn $ defaultDeleteVcnRequest vcn.id
+                deleteResult <- liftEffect $ deleteVcn $ defaultDeleteVcnRequest profile Nothing vcn.id
                 case deleteResult of
                   Right deleted ->
                     liftEffect $ assertEqual' "VCN has been deleted" { actual: deleted, expected: { success: true } }
@@ -139,13 +137,15 @@ ociTests = do
         void $ Application.ensureAllStarted $ atom "erlexec"
         unsafeRunProcessM
           $ do
-              actual <- liftEffect $ createVcn $ (defaultCreateVcnRequest compartment)
+              newVcn <- liftEffect $ createVcn $ (defaultCreateVcnRequest profile Nothing)
                 { cidrBlocks = Just $ "192.168.0.0/24" : List.nil
                 , displayName = Just "unit test vcn"
                 , dnsLabel = Just "unittestvcn"
                 }
 
-              (vcns :: Either (NonEmptyList ForeignError) (List VcnDetails)) <- liftEffect $ listVcns $ defaultListVcnsRequest compartment
+              liftEffect $ assertTrue' "VCN has been created" $ isRight newVcn
+
+              (vcns :: Either (NonEmptyList ForeignError) (List VcnDetails)) <- liftEffect $ listVcns $ defaultListVcnsRequest profile Nothing
 
               let
                 vcns' :: Maybe (List VcnDetails)
@@ -156,26 +156,21 @@ ociTests = do
               let
                 maybeVcn = case vcns' of
                   Just vcnList -> do
-                    let
-                      firstVcn = head vcnList
-                    case firstVcn of
-                      Just v ->
-                        Just v.id
-                      Nothing ->
-                        Nothing
-                  Nothing ->
-                    Nothing
+                    case head vcnList of
+                      Just v -> Just v.id
+                      Nothing -> Nothing
+                  Nothing -> Nothing
 
               case maybeVcn of
                 Just vcnId -> do
-                  actual <- liftEffect $ createSubnet $ (defaultCreateSubnetRequest "192.168.0.0/24" vcnId)
+                  actual <- liftEffect $ createSubnet $ (defaultCreateSubnetRequest profile Nothing "192.168.0.0/24" vcnId)
                     { displayName = Just "unit test subnet"
                     }
                   liftEffect $ assertTrue' "Subnet was created" $ isRight actual
                 Nothing ->
                   liftEffect $ assertTrue' "Subnet was not created" $ isJust maybeVcn
 
-              (subnets :: Either (NonEmptyList ForeignError) (List SubnetDetails)) <- liftEffect $ listSubnets $ (defaultListSubnetsRequest compartment) { displayName = Just "unit test subnet" }
+              (subnets :: Either (NonEmptyList ForeignError) (List SubnetDetails)) <- liftEffect $ listSubnets $ (defaultListSubnetsRequest profile Nothing) { displayName = Just "unit test subnet" }
 
               let
                 subnets' :: Maybe (List SubnetDetails)
@@ -193,7 +188,7 @@ ociTests = do
 
               liftEffect $ assertTrue' "Subnet was not created" $ isJust maybeSubnet
 
-              (availabilityDomains :: Either (NonEmptyList ForeignError) (List AvailabilityDomain)) <- liftEffect $ listAvailabilityDomains defaultListAvailabilityDomainRequest
+              (availabilityDomains :: Either (NonEmptyList ForeignError) (List AvailabilityDomain)) <- liftEffect $ listAvailabilityDomains $ defaultListAvailabilityDomainRequest profile Nothing
 
               let
                 availabilityDomains' :: Maybe (List AvailabilityDomain)
@@ -212,7 +207,7 @@ ociTests = do
 
               case maybeSubnet, maybeAvailabilityDomain, maybeVcn of
                 Just subnet, Just availabilityDomain, Just vcnId -> do
-                  createdInstance <- liftEffect $ launchInstance $ (defaultLaunchInstanceRequest availabilityDomain compartment (Shape "VM.Standard.E2.1.Micro") subnet)
+                  createdInstance <- liftEffect $ launchInstance $ (defaultLaunchInstanceRequest profile Nothing availabilityDomain (Shape "VM.Standard.E2.1.Micro") subnet)
                     { displayName = Just "unit test instance"
                     , imageId = Just $ ImageId "ocid1.image.oc1.uk-london-1.aaaaaaaazngdzjtqmduhr2w3gzijcwyvtahaucuqyj2bxxp2lwyvxk5oanfa"
                     }
@@ -221,15 +216,21 @@ ociTests = do
 
                   case createdInstance of
                     Right inst -> do
-                      terminatedInstance <- liftEffect $ terminateInstance $ defaultTerminateInstanceRequest inst.id
+                      terminatedInstance <- liftEffect $ terminateInstance $ defaultTerminateInstanceRequest profile Nothing inst.id
                       void $ liftEffect $ assertTrue' "Terminated instance" $ isRight terminatedInstance
                       void $ liftEffect $ sleep $ Milliseconds 60000.0
-                      deletedSubnet <- liftEffect $ deleteSubnet $ defaultDeleteSubnetRequest subnet
+                      deletedSubnet <- liftEffect $ deleteSubnet $ defaultDeleteSubnetRequest profile Nothing subnet
                       void $ liftEffect $ assertTrue' "Deleted subnet" $ isRight deletedSubnet
-                      void $ liftEffect $ deleteVcn $ defaultDeleteVcnRequest vcnId
+                      void $ liftEffect $ deleteVcn $ defaultDeleteVcnRequest profile Nothing vcnId
                     Left _ -> do
                       liftEffect $ assertTrue' "Instance was not created " false
                   liftEffect $ assertTrue' "Instance was launched " true
                 _, _, _ ->
                   liftEffect $ assertTrue' "Instance was not created " false
 
+profile :: OciProfile
+profile =
+  { defaultCompartment: CompartmentId "ocid1.compartment.oc1..aaaaaaaaf7prbnbobebhupne4afstgmtkfebpagkt4rhrphqudumceda6tgq"
+  , configFile: "~/.oci/config"
+  , ociProfileName: "id3as"
+  }
