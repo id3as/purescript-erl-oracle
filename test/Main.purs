@@ -8,6 +8,7 @@ import Data.Foldable (length)
 import Data.List.Types (NonEmptyList)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Time.Duration (Milliseconds(..))
+import Debug (spy)
 import Effect.Class (liftEffect)
 import Erl.Atom (atom)
 import Erl.Data.List (List, head, (:), filter)
@@ -28,6 +29,8 @@ import Erl.Oracle.Types.Instance (InstanceLifecycleState(..))
 import Erl.Oracle.Types.Subnet (SubnetDetails)
 import Erl.Oracle.Types.VirtualCloudNetwork (VcnDetails)
 import Erl.Oracle.VirtualCloudNetwork (createVcn, defaultCreateVcnRequest, defaultDeleteVcnRequest, defaultListVcnsRequest, deleteVcn, listVcns)
+import Erl.Oracle.VirtualNetworkInterface (defaultGetVnic, getVnic)
+import Erl.Oracle.VirtualNetworkInterfaceAttachment (defaultListVnicAttachments, listVnicAttachments)
 import Erl.Process (unsafeRunProcessM)
 import Erl.Test.EUnit (TestF, TestSet, collectTests, suite, test, timeout)
 import Foreign (ForeignError)
@@ -228,6 +231,28 @@ ociTests = do
 
                   case createdInstance of
                     Right inst -> do
+
+                      -- Need provisioning to have started before NICs are visible
+                      liftEffect $ sleep $ Milliseconds 8000.0
+
+                      vnicDetails <- liftEffect $ listVnicAttachments $ (defaultListVnicAttachments profile Nothing) { instanceId = Just inst.id }
+                      void $ liftEffect $ assertTrue' "Vnic attachment exists" $ isRight $ vnicDetails
+
+                      case vnicDetails of
+                        Right vnicDetails' -> do
+                          case head vnicDetails' of
+                            Just vnicAttachment -> do
+                              case vnicAttachment.vnicId of
+                                Just vnicId -> do
+                                  vnic <- liftEffect $ getVnic $ (defaultGetVnic profile Nothing vnicId)
+                                  void $ liftEffect $ assertTrue' "Vnic exists" $ isRight $ vnic
+                                Nothing ->
+                                  void $ liftEffect $ assertTrue' "No vnicId" false
+                            Nothing ->
+                              void $ liftEffect $ assertTrue' "No vnic attachments" false
+                        Left _ -> do
+                          void $ liftEffect $ assertTrue' "Error getting vnic attachments" false
+
                       terminatedInstance <- liftEffect $ terminateInstance $ defaultTerminateInstanceRequest profile Nothing inst.id
                       void $ liftEffect $ assertTrue' "Terminated instance" $ isRight terminatedInstance
                       void $ liftEffect $ sleep $ Milliseconds 60000.0

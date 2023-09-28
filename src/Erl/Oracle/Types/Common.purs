@@ -238,6 +238,30 @@ derive instance Generic SecurityListId _
 instance Show SecurityListId where
   show = genericShow
 
+newtype VnicAttachmentId = VnicAttachmentId String
+
+derive newtype instance Eq VnicAttachmentId
+derive newtype instance Ord VnicAttachmentId
+derive newtype instance ReadForeign VnicAttachmentId
+derive newtype instance WriteForeign VnicAttachmentId
+derive newtype instance WriteForeignKey VnicAttachmentId
+derive instance Newtype VnicAttachmentId _
+derive instance Generic VnicAttachmentId _
+instance Show VnicAttachmentId where
+  show = genericShow
+
+newtype VnicId = VnicId String
+
+derive newtype instance Eq VnicId
+derive newtype instance Ord VnicId
+derive newtype instance ReadForeign VnicId
+derive newtype instance WriteForeign VnicId
+derive newtype instance WriteForeignKey VnicId
+derive instance Newtype VnicId _
+derive instance Generic VnicId _
+instance Show VnicId where
+  show = genericShow
+
 data LaunchMode
   = Native
   | Emulated
@@ -271,9 +295,9 @@ type ExtendedMetadata = Map String (Map String String)
 type FreeformTags = Map String String
 type Metadata = Map String String
 
-
 type OciProfile =
   { defaultCompartment :: CompartmentId
   , ociProfileName :: String
   , configFile :: String
   }
+

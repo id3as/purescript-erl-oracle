@@ -157,10 +157,9 @@ createSubnet req@{ cidrBlock, vcnId, displayName } = do
   pure $ runExcept $ fromCreateSubnetResponse =<< readJSON' =<< outputJson
 
 listSubnets :: ListSubnetsRequest -> Effect (Either MultipleErrors (List SubnetDetails))
-listSubnets req@{ compartment, displayName, vcn } = do
+listSubnets req@{ displayName, vcn } = do
   let
     cli = ociCliBase req $ " network subnet list"
-      <> (" --compartment-id " <> unwrap compartment)
       <> (fromMaybe "" $ (\r -> " --vcn-id " <> r) <$> unwrap <$> vcn)
       <> (fromMaybe "" $ (\r -> " --display-name '" <> r <> "'") <$> displayName)
   outputJson <- runOciCli cli

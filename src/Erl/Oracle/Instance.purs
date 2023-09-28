@@ -21,12 +21,14 @@ import Erl.Data.Binary.IOData (fromString)
 import Erl.Data.List (List)
 import Erl.File (writeFile)
 import Erl.FileLib (mkTemp)
+import Erl.Kernel.Inet (IpAddress)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
 import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, Shape(..), SubnetId, ExtendedMetadata, OciProfile)
 import Erl.Oracle.Types.Images (LaunchOptions)
 import Erl.Oracle.Types.Instance (InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceDescription, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, PreemptibleInstanceConfig, PreemptionAction, LaunchInstanceRequest)
 import Foreign (F, ForeignError, MultipleErrors)
 import Simple.JSON (readJSON', writeJSON)
+import Unsafe.Coerce (unsafeCoerce)
 
 type ListInstancesRequest = BaseRequest
   ( availabilityDomain :: Maybe AvailabilityDomainId
@@ -534,3 +536,4 @@ terminateInstance req@{ instanceId } = do
       (" --instance-id " <> unwrap instanceId)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromTerminateInstanceResponse =<< readJSON' =<< outputJson
+
