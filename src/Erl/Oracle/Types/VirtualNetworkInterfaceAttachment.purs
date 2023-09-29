@@ -1,4 +1,4 @@
-module Erl.Oracle.Types.VirtualNetworkIntefaceAttachment where
+module Erl.Oracle.Types.VirtualNetworkInterfaceAttachment where
 
 import Prelude
 

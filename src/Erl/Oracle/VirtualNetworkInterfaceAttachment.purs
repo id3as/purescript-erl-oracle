@@ -15,7 +15,7 @@ import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, runOciCli)
 import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CompartmentId(..), InstanceId(..), SubnetId(..), VlanId(..), VnicAttachmentId(..), VnicId(..), OciProfile)
-import Erl.Oracle.Types.VirtualNetworkIntefaceAttachment (VnicAttachmentLifecycleState, VnicAttachment)
+import Erl.Oracle.Types.VirtualNetworkInterfaceAttachment (VnicAttachmentLifecycleState, VnicAttachment)
 import Foreign (MultipleErrors, F)
 import Simple.JSON (readJSON')
 
