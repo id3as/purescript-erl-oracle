@@ -1,4 +1,8 @@
-module Erl.Oracle.VirtualNetworkInterface where
+module Erl.Oracle.VirtualNetworkInterface
+  ( GetVnicRequest
+  , defaultGetVnic
+  , getVnic
+  ) where
 
 import Prelude
 
