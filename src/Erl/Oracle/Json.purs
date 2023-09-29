@@ -177,6 +177,6 @@ instance genericEnumWriteForeignConstructor ::
   ( IsSymbol name
   ) =>
   GenericEnumWriteForeign (Constructor name NoArguments) where
-  genericEnumWriteForeignImpl f = writeImpl name
+  genericEnumWriteForeignImpl _ = writeImpl name
     where
     name = reflectSymbol (Proxy :: Proxy name)

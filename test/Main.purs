@@ -8,11 +8,12 @@ import Data.Foldable (length)
 import Data.List.Types (NonEmptyList)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Time.Duration (Milliseconds(..))
-import Debug (spy)
+import Debug (spy, trace)
 import Effect.Class (liftEffect)
 import Erl.Atom (atom)
 import Erl.Data.List (List, head, (:), filter)
 import Erl.Data.List as List
+import Erl.Data.Map as Map
 import Erl.Kernel.Application as Application
 import Erl.Kernel.Erlang (sleep)
 import Erl.Oracle.AvailabilityDomain (defaultListAvailabilityDomainRequest, listAvailabilityDomains)
@@ -222,9 +223,13 @@ ociTests = do
 
               case maybeSubnet, maybeAvailabilityDomain, maybeVcn of
                 Just subnet, Just availabilityDomain, Just vcnId -> do
+                  let
+                    metadata = Map.insert "test" "key" Map.empty
+
                   createdInstance <- liftEffect $ launchInstance $ (defaultLaunchInstanceRequest profile Nothing availabilityDomain (Shape "VM.Standard.E2.1.Micro") subnet)
                     { displayName = Just "unit test instance"
                     , imageId = Just $ ImageId "ocid1.image.oc1.uk-london-1.aaaaaaaazngdzjtqmduhr2w3gzijcwyvtahaucuqyj2bxxp2lwyvxk5oanfa"
+                    , metadata = Just $ metadata
                     }
 
                   liftEffect $ assertTrue' "Instance was launched " $ isRight createdInstance
@@ -245,7 +250,12 @@ ociTests = do
                               case vnicAttachment.vnicId of
                                 Just vnicId -> do
                                   vnic <- liftEffect $ getVnic $ (defaultGetVnic profile Nothing vnicId)
-                                  void $ liftEffect $ assertTrue' "Vnic exists" $ isRight $ vnic
+                                  void $ liftEffect $ assertTrue' "Vnic exists" $ isRight vnic
+                                  case vnic of
+                                    Right { privateIp } ->
+                                      liftEffect $ assertTrue' "Vnic has private ip" $ isJust privateIp
+                                    _ ->
+                                      void $ liftEffect $ assertTrue' "No vnic" false
                                 Nothing ->
                                   void $ liftEffect $ assertTrue' "No vnicId" false
                             Nothing ->
@@ -254,10 +264,10 @@ ociTests = do
                           void $ liftEffect $ assertTrue' "Error getting vnic attachments" false
 
                       terminatedInstance <- liftEffect $ terminateInstance $ defaultTerminateInstanceRequest profile Nothing inst.id
-                      void $ liftEffect $ assertTrue' "Terminated instance" $ isRight terminatedInstance
-                      void $ liftEffect $ sleep $ Milliseconds 60000.0
+                      void $ liftEffect $ assertTrue' "Terminated instance" $ isRight $ spy "Terminated instance result" terminatedInstance
+                      void $ liftEffect $ sleep $ Milliseconds 80000.0
                       deletedSubnet <- liftEffect $ deleteSubnet $ defaultDeleteSubnetRequest profile Nothing subnet
-                      void $ liftEffect $ assertTrue' "Deleted subnet" $ isRight deletedSubnet
+                      void $ liftEffect $ assertTrue' "Deleted subnet" $ isRight $ spy "Deleted subnet result" deletedSubnet
                       void $ liftEffect $ deleteVcn $ defaultDeleteVcnRequest profile Nothing vcnId
                     Left _ -> do
                       liftEffect $ assertTrue' "Instance was not created " false

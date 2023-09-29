@@ -21,14 +21,12 @@ import Erl.Data.Binary.IOData (fromString)
 import Erl.Data.List (List)
 import Erl.File (writeFile)
 import Erl.FileLib (mkTemp)
-import Erl.Kernel.Inet (IpAddress)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
-import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, Shape(..), SubnetId, ExtendedMetadata, OciProfile)
+import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, OciProfile, Shape(..), SubnetId, ExtendedMetadata)
 import Erl.Oracle.Types.Images (LaunchOptions)
 import Erl.Oracle.Types.Instance (InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceDescription, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, PreemptibleInstanceConfig, PreemptionAction, LaunchInstanceRequest)
 import Foreign (F, ForeignError, MultipleErrors)
 import Simple.JSON (readJSON', writeJSON)
-import Unsafe.Coerce (unsafeCoerce)
 
 type ListInstancesRequest = BaseRequest
   ( availabilityDomain :: Maybe AvailabilityDomainId
@@ -445,7 +443,7 @@ launchInstance
           let
             ipxeFile = tempDir <> "/ipxe"
           void $ writeFile ipxeFile $ fromString script'
-          pure $ "--ipxe-script-file " <> ipxeFile
+          pure $ " --ipxe-script-file " <> ipxeFile
         Nothing -> pure ""
 
     writeUserDataFile :: Maybe String -> Effect String
@@ -455,7 +453,27 @@ launchInstance
           let
             userDataFile = tempDir <> "/userData"
           void $ writeFile userDataFile $ fromString d
-          pure $ "--user-data-file " <> userDataFile
+          pure $ " --user-data-file " <> userDataFile
+        Nothing -> pure ""
+
+    writeMetadataFile :: Maybe Metadata -> Effect String
+    writeMetadataFile = do
+      case _ of
+        Just d -> do
+          let
+            metadataFile = tempDir <> "/metadata"
+          void $ writeFile metadataFile $ fromString $ writeJSON d
+          pure $ (" --metadata file://" <> metadataFile)
+        Nothing -> pure ""
+
+    writeExtendedMetadataFile :: Maybe ExtendedMetadata -> Effect String
+    writeExtendedMetadataFile = do
+      case _ of
+        Just d -> do
+          let
+            metadataFile = tempDir <> "/extendedmetadata"
+          void $ writeFile metadataFile $ fromString $ writeJSON d
+          pure $ (" --extended-metadata file://" <> metadataFile)
         Nothing -> pure ""
 
     writeSshKeyFile :: Maybe String -> Effect String
@@ -465,12 +483,14 @@ launchInstance
           let
             sshKeyFile = tempDir <> "/sshKeys"
           void $ writeFile sshKeyFile $ fromString sshKeys
-          pure $ "--ssh-authorized-keys-file " <> sshKeyFile
+          pure $ " --ssh-authorized-keys-file " <> sshKeyFile
         Nothing -> pure ""
 
   ipxeFile' <- writeIpxeFile $ ipxeScript
   userDataFile' <- writeUserDataFile $ userData
   sshKeyFile' <- writeSshKeyFile $ sshAuthorizedKeys
+  writeMetadataFile' <- writeMetadataFile metadata
+  writeExtendedMetadataFile' <- writeExtendedMetadataFile extendedMetadata
 
   let
     cli :: String
@@ -493,11 +513,13 @@ launchInstance
       <> (fromMaybe "" $ (\r -> " --skip-source-dest-check " <> r) <$> show <$> skipSourceDestCheck)
       <> (fromMaybe "" $ (\r -> " --defined-tags '" <> r <> "'") <$> writeJSON <$> definedTags)
       <> (fromMaybe "" $ (\r -> " --freeform-tags '" <> r <> "'") <$> writeJSON <$> freeformTags)
-      <> (fromMaybe "" $ (\r -> " --metadata'" <> r <> "'") <$> writeJSON <$> metadata)
-      <> (fromMaybe "" $ (\r -> " --extended-metadata'" <> r <> "'") <$> writeJSON <$> extendedMetadata)
+      -- <> (fromMaybe "" $ (\r -> " --metadata '" <> r <> "'") <$> spy "Write metadata" writeJSON <$> metadata)
+      -- <> (fromMaybe "" $ (\r -> " --extended-metadata '" <> r <> "'") <$> writeJSON <$> extendedMetadata)
       <> ipxeFile'
       <> userDataFile'
       <> sshKeyFile'
+      <> writeMetadataFile'
+      <> writeExtendedMetadataFile'
       <> (fromMaybe "" $ (\r -> " --launch-options '" <> r <> "'") <$> writeJSON <$> launchOptions)
       <> (fromMaybe "" $ (\r -> " --instance-options '" <> r <> "'") <$> writeJSON <$> instanceOptions)
       <> (fromMaybe "" $ (\r -> " --availability-config '" <> r <> "'") <$> writeJSON <$> availabilityConfig)

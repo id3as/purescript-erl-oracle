@@ -15,7 +15,7 @@ import Data.Maybe (Maybe)
 import Data.Newtype (unwrap)
 import Data.String (replaceAll, Pattern(..), Replacement(..))
 import Effect (Effect)
-import Erl.Oracle.Types.Common (CompartmentId(..), OciProfile)
+import Erl.Oracle.Types.Common (CompartmentId, OciProfile)
 import Foreign (F, ForeignError(..))
 
 type BaseRequest a =
