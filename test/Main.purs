@@ -23,7 +23,7 @@ import Erl.Oracle.Images (defaultListImagesRequest, listImages)
 import Erl.Oracle.Instance (defaultLaunchInstanceRequest, defaultListInstancesRequest, defaultTerminateInstanceRequest, launchInstance, listInstances, terminateInstance)
 import Erl.Oracle.Shape (defaultListShapesRequest, listShapes)
 import Erl.Oracle.ShapeCompatibility (defaultListImageShapeCompatibilityRequest, listCompatibleShapes)
-import Erl.Oracle.Subnet (createSubnet, defaultCreateSubnetRequest, defaultDeleteSubnetRequest, defaultListSubnetsRequest, deleteSubnet, listSubnets)
+import Erl.Oracle.Subnet (createSubnet, defaultCreateSubnetRequest, defaultDeleteSubnetRequest, defaultGetSubnetRequest, defaultListSubnetsRequest, deleteSubnet, getSubnet, listSubnets)
 import Erl.Oracle.Types.AvailabilityDomain (AvailabilityDomain)
 import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId(..), ImageId(..), Shape(..), OciProfile)
 import Erl.Oracle.Types.Instance (InstanceLifecycleState(..))
@@ -179,10 +179,18 @@ ociTests = do
 
               case maybeVcn of
                 Just vcnId -> do
-                  actual <- liftEffect $ createSubnet $ (defaultCreateSubnetRequest profile Nothing "192.168.0.0/24" vcnId)
+                  actual <- liftEffect $ createSubnet $ ((defaultCreateSubnetRequest profile Nothing "192.168.0.0/24" vcnId) { dnsLabel = Just "utsubnet" })
                     { displayName = Just "unit test subnet"
                     }
                   liftEffect $ assertTrue' "Subnet was created" $ isRight actual
+
+                  case actual of
+                    Right s -> do
+                      createdSubnet <- liftEffect $ getSubnet $ (defaultGetSubnetRequest profile Nothing s.id)
+                      liftEffect $ assertTrue' "Subnet retrieved by id" $ isRight createdSubnet
+                    Left _ ->
+                      pure $ unit
+
                 Nothing ->
                   liftEffect $ assertTrue' "Subnet was not created" $ isJust maybeVcn
 

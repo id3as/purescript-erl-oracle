@@ -5,8 +5,10 @@ module Erl.Oracle.Subnet
   , createSubnet
   , defaultCreateSubnetRequest
   , defaultDeleteSubnetRequest
+  , defaultGetSubnetRequest
   , defaultListSubnetsRequest
   , deleteSubnet
+  , getSubnet
   , listSubnets
   ) where
 
@@ -20,7 +22,7 @@ import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.List (List)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
-import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, RouteTableId, SecurityListId, SubnetId, VcnId, OciProfile)
+import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId, DefinedTags, DhcpOptionsId, FreeformTags, OciProfile, RouteTableId, SecurityListId, SubnetId, VcnId)
 import Erl.Oracle.Types.Subnet (SubnetLifecycleState, SubnetDetails)
 import Foreign (F, MultipleErrors)
 import Simple.JSON (readJSON')
@@ -126,6 +128,11 @@ type CreateSubnetRequest = BaseRequest
   ( cidrBlock :: String
   , vcnId :: VcnId
   , displayName :: Maybe String
+  , dnsLabel :: Maybe String
+  )
+
+type GetSubnetRequest = BaseRequest
+  ( subnetId :: SubnetId
   )
 
 defaultCreateSubnetRequest :: OciProfile -> Maybe CompartmentId -> String -> VcnId -> CreateSubnetRequest
@@ -135,6 +142,7 @@ defaultCreateSubnetRequest profile@{ defaultCompartment } compartment cidrBlock 
   , displayName: Nothing
   , compartment: fromMaybe defaultCompartment compartment
   , profile
+  , dnsLabel: Nothing
   }
 
 type CreateSubnetResponseInt =
@@ -147,12 +155,13 @@ fromCreateSubnetResponse { "data": details } = ado
   in resp
 
 createSubnet :: CreateSubnetRequest -> Effect (Either MultipleErrors SubnetDetails)
-createSubnet req@{ cidrBlock, vcnId, displayName } = do
+createSubnet req@{ cidrBlock, vcnId, displayName, dnsLabel } = do
   let
     cli = ociCliBase req $ " network subnet create"
       <> (" --cidr-block " <> cidrBlock)
       <> (" --vcn-id " <> unwrap vcnId)
       <> (fromMaybe "" $ (\r -> " --display-name '" <> r <> "'") <$> displayName)
+      <> (fromMaybe "" $ (\r -> " --dns-label '" <> r <> "'") <$> dnsLabel)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromCreateSubnetResponse =<< readJSON' =<< outputJson
 
@@ -190,3 +199,18 @@ deleteSubnet req@{ subnetId } = do
       (" --subnet-id " <> unwrap subnetId)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromTerminateSubnetResponse =<< readJSON' =<< outputJson
+
+defaultGetSubnetRequest :: OciProfile -> Maybe CompartmentId -> SubnetId -> GetSubnetRequest
+defaultGetSubnetRequest profile@{ defaultCompartment } compartment subnetId =
+  { subnetId
+  , compartment: fromMaybe defaultCompartment compartment
+  , profile
+  }
+
+getSubnet :: GetSubnetRequest -> Effect (Either MultipleErrors SubnetDetails)
+getSubnet req@{ subnetId } = do
+  let
+    cli = ociCliBase' req "network subnet get  " <>
+      (" --subnet-id " <> unwrap subnetId)
+  outputJson <- runOciCli cli
+  pure $ runExcept $ fromCreateSubnetResponse =<< readJSON' =<< outputJson
