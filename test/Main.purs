@@ -233,8 +233,17 @@ ociTests = do
                 Just subnet, Just availabilityDomain, Just vcnId -> do
                   let
                     metadata = Map.insert "test" "key" Map.empty
+                    extendedMetadata = Map.insert "id3as.userData"
+                      ( Map.insert "dockerLabel" "norsk-worker:v1.0.341-main-arm64"
+                          $ (Map.insert "mappedPort" "1:2")
+                          $ (Map.insert "workerServicePort" "2")
+                          $ (Map.insert "nodeId" "foo")
+                          $ (Map.insert "json" "foo")
+                          $ Map.empty
+                      )
+                      Map.empty
 
-                  createdInstance <- liftEffect $ launchInstance $ (defaultLaunchInstanceRequest profile Nothing availabilityDomain (Shape "VM.Standard.E2.1.Micro") subnet)
+                  createdInstance <- liftEffect $ launchInstance $ ((defaultLaunchInstanceRequest profile Nothing availabilityDomain (Shape "VM.Standard.E2.1.Micro") subnet) { extendedMetadata = Just $ extendedMetadata })
                     { displayName = Just "unit test instance"
                     , imageId = Just $ ImageId "ocid1.image.oc1.uk-london-1.aaaaaaaazngdzjtqmduhr2w3gzijcwyvtahaucuqyj2bxxp2lwyvxk5oanfa"
                     , metadata = Just $ metadata

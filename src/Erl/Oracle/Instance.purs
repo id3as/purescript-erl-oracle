@@ -1,9 +1,11 @@
 module Erl.Oracle.Instance
   ( defaultLaunchInstanceRequest
   , defaultListInstancesRequest
+  , defaultStopInstanceRequest
   , defaultTerminateInstanceRequest
   , launchInstance
   , listInstances
+  , stopInstance
   , terminateInstance
   ) where
 
@@ -559,3 +561,28 @@ terminateInstance req@{ instanceId } = do
   outputJson <- runOciCli cli
   pure $ runExcept $ fromTerminateInstanceResponse =<< readJSON' =<< outputJson
 
+type StopInstanceRequest = BaseRequest
+  ( instanceId :: InstanceId
+  )
+
+defaultStopInstanceRequest :: OciProfile -> Maybe CompartmentId -> InstanceId -> StopInstanceRequest
+defaultStopInstanceRequest profile@{ defaultCompartment } compartment instanceId =
+  { instanceId
+  , profile
+  , compartment: fromMaybe defaultCompartment compartment
+  }
+
+type StopInstanceResponse =
+  { "data" :: List String
+  }
+
+fromStopInstanceResponse :: StopInstanceResponse -> F Boolean
+fromStopInstanceResponse { "data": _resp } = pure true
+
+stopInstance :: StopInstanceRequest -> Effect (Either MultipleErrors Boolean)
+stopInstance req@{ instanceId } = do
+  let
+    cli = ociCliBase' req "compute instance stop " <>
+      (" --instance-id " <> unwrap instanceId)
+  outputJson <- runOciCli cli
+  pure $ runExcept $ fromStopInstanceResponse =<< readJSON' =<< outputJson
