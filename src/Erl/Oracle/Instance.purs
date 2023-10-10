@@ -26,7 +26,7 @@ import Erl.FileLib (mkTemp)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
 import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, OciProfile, Shape(..), SubnetId, ExtendedMetadata)
 import Erl.Oracle.Types.Images (LaunchOptions)
-import Erl.Oracle.Types.Instance (InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceDescription, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, PreemptibleInstanceConfig, PreemptionAction, LaunchInstanceRequest)
+import Erl.Oracle.Types.Instance (InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, LaunchInstanceRequest, PreemptibleInstanceConfig, PreemptionAction, InstanceDescription)
 import Foreign (F, ForeignError, MultipleErrors)
 import Simple.JSON (readJSON', writeJSON)
 
@@ -573,16 +573,16 @@ defaultStopInstanceRequest profile@{ defaultCompartment } compartment instanceId
   }
 
 type StopInstanceResponse =
-  { "data" :: List String
+  { "data" :: InstanceDescriptionInt
   }
 
-fromStopInstanceResponse :: StopInstanceResponse -> F Boolean
-fromStopInstanceResponse { "data": _resp } = pure true
+fromStopInstanceResponse :: StopInstanceResponse -> F InstanceDescription
+fromStopInstanceResponse { "data": resp } = fromInstanceDescription resp
 
-stopInstance :: StopInstanceRequest -> Effect (Either MultipleErrors Boolean)
+stopInstance :: StopInstanceRequest -> Effect (Either MultipleErrors InstanceDescription)
 stopInstance req@{ instanceId } = do
   let
-    cli = ociCliBase' req "compute instance stop " <>
+    cli = ociCliBase' req "compute instance action --action SOFTSTOP " <>
       (" --instance-id " <> unwrap instanceId)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromStopInstanceResponse =<< readJSON' =<< outputJson

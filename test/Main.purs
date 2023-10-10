@@ -4,11 +4,12 @@ import Prelude
 
 import Control.Monad.Free (Free)
 import Data.Either (Either(..), hush, isRight)
-import Data.Foldable (length)
+import Data.Foldable (length, find)
 import Data.List.Types (NonEmptyList)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Time.Duration (Milliseconds(..))
-import Debug (spy, trace)
+import Debug (spy, trace, traceM)
+import Effect (Effect)
 import Effect.Class (liftEffect)
 import Erl.Atom (atom)
 import Erl.Data.List (List, head, (:), filter)
@@ -20,12 +21,12 @@ import Erl.Oracle.AvailabilityDomain (defaultListAvailabilityDomainRequest, list
 import Erl.Oracle.CapacityReservation (defaultListCapacityReservationRequest, listCapacityReservations)
 import Erl.Oracle.Compartments (defaultListCompartmentsRequest, listCompartments)
 import Erl.Oracle.Images (defaultListImagesRequest, listImages)
-import Erl.Oracle.Instance (defaultLaunchInstanceRequest, defaultListInstancesRequest, defaultTerminateInstanceRequest, launchInstance, listInstances, terminateInstance)
+import Erl.Oracle.Instance (defaultLaunchInstanceRequest, defaultListInstancesRequest, defaultStopInstanceRequest, defaultTerminateInstanceRequest, launchInstance, listInstances, stopInstance, terminateInstance)
 import Erl.Oracle.Shape (defaultListShapesRequest, listShapes)
 import Erl.Oracle.ShapeCompatibility (defaultListImageShapeCompatibilityRequest, listCompatibleShapes)
 import Erl.Oracle.Subnet (createSubnet, defaultCreateSubnetRequest, defaultDeleteSubnetRequest, defaultGetSubnetRequest, defaultListSubnetsRequest, deleteSubnet, getSubnet, listSubnets)
 import Erl.Oracle.Types.AvailabilityDomain (AvailabilityDomain)
-import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId(..), ImageId(..), Shape(..), OciProfile)
+import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId(..), ImageId(..), Shape(..), OciProfile, InstanceId(..))
 import Erl.Oracle.Types.Instance (InstanceLifecycleState(..))
 import Erl.Oracle.Types.Subnet (SubnetDetails)
 import Erl.Oracle.Types.VirtualCloudNetwork (VcnDetails)
@@ -255,7 +256,8 @@ ociTests = do
                     Right inst -> do
 
                       -- Need provisioning to have started before NICs are visible
-                      liftEffect $ sleep $ Milliseconds 8000.0
+                      void $ liftEffect $ waitForStarted profile inst.id
+                      --                      liftEffect $ sleep $ Milliseconds 8000.0
 
                       vnicDetails <- liftEffect $ listVnicAttachments $ (defaultListVnicAttachments profile Nothing) { instanceId = Just inst.id }
                       void $ liftEffect $ assertTrue' "Vnic attachment exists" $ isRight $ vnicDetails
@@ -280,8 +282,11 @@ ociTests = do
                         Left _ -> do
                           void $ liftEffect $ assertTrue' "Error getting vnic attachments" false
 
+                      stopInstance <- liftEffect $ stopInstance $ defaultStopInstanceRequest profile Nothing inst.id
+                      void $ liftEffect $ assertTrue' "Stopped instance" $ isRight stopInstance
+
                       terminatedInstance <- liftEffect $ terminateInstance $ defaultTerminateInstanceRequest profile Nothing inst.id
-                      void $ liftEffect $ assertTrue' "Terminated instance" $ isRight $ spy "Terminated instance result" terminatedInstance
+                      void $ liftEffect $ assertTrue' "Terminated instance" $ isRight terminatedInstance
                       void $ liftEffect $ sleep $ Milliseconds 80000.0
                       deletedSubnet <- liftEffect $ deleteSubnet $ defaultDeleteSubnetRequest profile Nothing subnet
                       void $ liftEffect $ assertTrue' "Deleted subnet" $ isRight $ spy "Deleted subnet result" deletedSubnet
@@ -291,6 +296,29 @@ ociTests = do
                   liftEffect $ assertTrue' "Instance was launched " true
                 _, _, _ ->
                   liftEffect $ assertTrue' "Instance was not created " false
+
+waitForStarted :: OciProfile -> InstanceId -> Effect Unit
+waitForStarted profile inst = do
+  trace "Waiting for instance to start" \_ -> pure unit
+  sleep $ Milliseconds 10000.0
+  instances <- listInstances $ defaultListInstancesRequest profile Nothing
+  case instances of
+    Right instances -> do
+      case find (\t -> t.id == inst) instances of
+        Just inst -> do
+          case inst.lifecycleState of
+            Running -> do
+              trace "Instance is running" \_ -> pure unit
+              pure unit
+            _ -> do
+              trace "Instance is not running" \_ -> pure unit
+              waitForStarted profile inst.id
+        Nothing -> do
+          trace "Instance not found" \_ -> pure unit
+          liftEffect $ assertTrue' "Instance disappeared" false
+    Left _ -> do
+      trace "Error listing instances" \_ -> pure unit
+      liftEffect $ assertTrue' "Error listing instances" false
 
 profile :: OciProfile
 profile =
