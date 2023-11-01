@@ -8,7 +8,7 @@ import Data.Foldable (length, find)
 import Data.List.Types (NonEmptyList)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Time.Duration (Milliseconds(..))
-import Debug (spy, trace, traceM)
+import Debug (spy, trace)
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Erl.Atom (atom)
@@ -21,12 +21,13 @@ import Erl.Oracle.AvailabilityDomain (defaultListAvailabilityDomainRequest, list
 import Erl.Oracle.CapacityReservation (defaultListCapacityReservationRequest, listCapacityReservations)
 import Erl.Oracle.Compartments (defaultListCompartmentsRequest, listCompartments)
 import Erl.Oracle.Images (defaultListImagesRequest, listImages)
-import Erl.Oracle.Instance (defaultLaunchInstanceRequest, defaultListInstancesRequest, defaultStopInstanceRequest, defaultTerminateInstanceRequest, launchInstance, listInstances, stopInstance, terminateInstance)
+import Erl.Oracle.Instance (defaultLaunchInstanceRequest, defaultListInstancesRequest, defaultTerminateInstanceRequest, launchInstance, listInstances, terminateInstance)
+import Erl.Oracle.Secrets (defaultGetSecretRequest, defaultListSecretsRequest, defaultListVaultsRequest, getSecret, listSecrets, listVaults)
 import Erl.Oracle.Shape (defaultListShapesRequest, listShapes)
 import Erl.Oracle.ShapeCompatibility (defaultListImageShapeCompatibilityRequest, listCompatibleShapes)
 import Erl.Oracle.Subnet (createSubnet, defaultCreateSubnetRequest, defaultDeleteSubnetRequest, defaultGetSubnetRequest, defaultListSubnetsRequest, deleteSubnet, getSubnet, listSubnets)
 import Erl.Oracle.Types.AvailabilityDomain (AvailabilityDomain)
-import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId(..), ImageId(..), Shape(..), OciProfile, InstanceId(..))
+import Erl.Oracle.Types.Common (AvailabilityDomainId, CompartmentId(..), ImageId(..), Shape(..), OciProfile, InstanceId)
 import Erl.Oracle.Types.Instance (InstanceLifecycleState(..))
 import Erl.Oracle.Types.Subnet (SubnetDetails)
 import Erl.Oracle.Types.VirtualCloudNetwork (VcnDetails)
@@ -36,6 +37,7 @@ import Erl.Oracle.VirtualNetworkInterfaceAttachment (defaultListVnicAttachments,
 import Erl.Process (unsafeRunProcessM)
 import Erl.Test.EUnit (TestF, TestSet, collectTests, suite, test, timeout)
 import Foreign (ForeignError)
+import Simple.JSON (writeJSON)
 import Test.Assert (assertEqual, assertEqual', assertTrue')
 
 main_test_ :: List TestSet
@@ -122,6 +124,37 @@ ociTests = do
             case actual of
               Right actualList -> do
                 liftEffect $ assertTrue' "At least 1 compatible shape" $ (length actualList) >= 1
+              Left _ -> do
+                liftEffect $ assertEqual { expected: Right List.nil, actual }
+
+  suite "secrets api" do
+    test "Can parse response" do
+      void $ Application.ensureAllStarted $ atom "erlexec"
+      unsafeRunProcessM
+        $ do
+            actual <- liftEffect $ listVaults $ defaultListVaultsRequest profile Nothing
+            case actual of
+              Right actualList -> do
+                case head actualList of
+                  Just _ -> do
+                    secrets <- liftEffect $ listSecrets $ defaultListSecretsRequest profile Nothing
+                    case secrets of
+                      Right secretList -> do
+                        case head secretList of
+                          Just { id } -> do
+                            secret <- liftEffect $ getSecret $ (defaultGetSecretRequest profile Nothing id)
+                            case secret of
+                              Right _ -> do
+                                liftEffect $ assertTrue' "Secret exists" true
+                              Left _ -> do
+                                liftEffect $ assertTrue' "Secret exists" false
+                          Nothing -> do
+                            liftEffect $ assertTrue' "At least one secret" false
+                      Left _ -> do
+                        liftEffect $ assertEqual { expected: Right List.nil, actual: secrets }
+                    pure unit
+                  Nothing ->
+                    liftEffect $ assertTrue' "At least one vault" $ (length actualList) >= 1
               Left _ -> do
                 liftEffect $ assertEqual { expected: Right List.nil, actual }
 
@@ -230,6 +263,11 @@ ociTests = do
                   Nothing ->
                     Nothing
 
+                daemonConfig =
+                  { workerServicePort: 8080
+                  , healthPingPeriod: 10000
+                  }
+
               case maybeSubnet, maybeAvailabilityDomain, maybeVcn of
                 Just subnet, Just availabilityDomain, Just vcnId -> do
                   let
@@ -248,6 +286,7 @@ ociTests = do
                     { displayName = Just "unit test instance"
                     , imageId = Just $ ImageId "ocid1.image.oc1.uk-london-1.aaaaaaaazngdzjtqmduhr2w3gzijcwyvtahaucuqyj2bxxp2lwyvxk5oanfa"
                     , metadata = Just $ metadata
+                    , userData = Just $ makeUserData $ writeJSON daemonConfig
                     }
 
                   liftEffect $ assertTrue' "Instance was launched " $ isRight createdInstance
@@ -282,7 +321,8 @@ ociTests = do
                         Left _ -> do
                           void $ liftEffect $ assertTrue' "Error getting vnic attachments" false
 
-                      stopInstance <- liftEffect $ stopInstance $ defaultStopInstanceRequest profile Nothing inst.id
+                      -- stopInstance <- liftEffect $ stopInstance $ defaultStopInstanceRequest profile Nothing inst.id
+                      stopInstance <- liftEffect $ terminateInstance $ defaultTerminateInstanceRequest profile Nothing inst.id
                       void $ liftEffect $ assertTrue' "Stopped instance" $ isRight stopInstance
 
                       terminatedInstance <- liftEffect $ terminateInstance $ defaultTerminateInstanceRequest profile Nothing inst.id
@@ -326,3 +366,40 @@ profile =
   , configFile: "~/.oci/config"
   , ociProfileName: "id3as"
   }
+
+makeUserData :: String -> String
+makeUserData json =
+  """#!/bin/bash
+set -x
+DEBIAN_FRONTEND=noninteractive  sudo apt install -y docker.io
+
+cd ${0%/*}
+cat <<"__EOF__" > /tmp/worker.12345.config
+"""
+    <> json
+    <>
+      """
+__EOF__
+
+NAME=worker-node-12345-${PWD##*/}
+
+cat <<__EOF__ > /etc/systemd/system/norsk_worker_daemon.service
+
+[Unit]
+Description=Norsk Worker Daemon
+After=network.target
+
+[Service]
+WorkingDirectory=/
+ExecStart=/usr/bin/docker run --rm --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock --mount type=bind,source=/tmp/worker.12345.config,target=/mnt/worker.config,readonly -p 8000:8080 --name $NAME norsk-worker:v1.0.341-main-arm64 --startup-config-file /mnt/worker.config
+ExecStop=/usr/bin/docker stop $NAME
+
+[Install]
+WantedBy=multi-user.target
+
+__EOF__
+
+systemctl daemon-reload
+systemctl enable norsk_worker_daemon
+systemctl start norsk_worker_daemon
+"""

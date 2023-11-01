@@ -262,6 +262,37 @@ derive instance Generic VnicId _
 instance Show VnicId where
   show = genericShow
 
+newtype SecretId = SecretId String
+
+derive newtype instance Eq SecretId
+derive newtype instance Ord SecretId
+derive newtype instance ReadForeign SecretId
+derive newtype instance WriteForeign SecretId
+derive newtype instance WriteForeignKey SecretId
+derive instance Newtype SecretId _
+derive instance Generic SecretId _
+instance Show SecretId where
+  show = genericShow
+
+data SecretStage
+  = Current
+  | Pending
+  | Latest
+  | Previous
+  | Deprecated
+
+newtype VaultId = VaultId String
+
+derive newtype instance Eq VaultId
+derive newtype instance Ord VaultId
+derive newtype instance ReadForeign VaultId
+derive newtype instance WriteForeign VaultId
+derive newtype instance WriteForeignKey VaultId
+derive instance Newtype VaultId _
+derive instance Generic VaultId _
+instance Show VaultId where
+  show = genericShow
+
 data LaunchMode
   = Native
   | Emulated

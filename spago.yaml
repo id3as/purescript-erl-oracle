@@ -44,7 +44,7 @@ workspace:
         - erl-test-eunit-discovery
         - simple-json
       git: https://github.com/id3as/purescript-erl-file.git
-      ref: 1a776ff01f8cac70dc0c611fa4335f49f764a2fc
+      ref: 1ff9a362e4ddad43338d6226524d0e3dd1161485
     erl-nativerefs:
       dependencies:
         - effect
