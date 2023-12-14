@@ -18,33 +18,6 @@ workspace:
         - unsafe-coerce
       git: https://github.com/id3as/purescript-erl-untagged-union.git
       ref: 2ee85de4baf6891ddea799134647fd0b8c4fd5f7
-    simple-json:
-      dependencies:
-        - erl-kernel
-        - erl-lists
-        - erl-maps
-        - exceptions
-        - foreign
-        - nullable
-        - prelude
-        - record
-        - typelevel-prelude
-        - variant
-      git: https://github.com/id3as/purescript-simple-json.git
-      ref: 19b092b4bea82b5751169db81de53bd4addb3402
-    erl-file:
-      dependencies:
-        - arrays
-        - assert
-        - datetime
-        - datetime-parsing
-        - erl-kernel
-        - erl-process
-        - erl-test-eunit
-        - erl-test-eunit-discovery
-        - simple-json
-      git: https://github.com/id3as/purescript-erl-file.git
-      ref: 1ff9a362e4ddad43338d6226524d0e3dd1161485
     erl-nativerefs:
       dependencies:
         - effect
@@ -62,6 +35,14 @@ workspace:
         - prelude
       git: https://github.com/id3as/purescript-erl-process.git
       ref: 5df4b6fbac7eeedcbd0f6c731949b1fed8a35b99
+    erl-stdlib:
+      dependencies:
+        - effect
+        - prelude
+        - erl-kernel
+        - pathy
+      git: https://github.com/id3as/purescript-erl-stdlib.git
+      ref: 68224dfbc4e875ebe79a7e698e92a279f8db22dd
     erl-kernel:
       dependencies:
         - convertable-options
@@ -81,13 +62,14 @@ workspace:
         - integers
         - maybe
         - newtype
+        - pathy
         - partial
         - prelude
         - record
         - typelevel-prelude
         - unsafe-coerce
       git: https://github.com/id3as/purescript-erl-kernel.git
-      ref: 67c7f7bc1d3dbe6dc950162ec667479cc77c4467
+      ref: 526599c1246f24dc337de6f80f1cdecd467b4314
     erl-test-eunit:
       dependencies:
         - assert
@@ -136,6 +118,21 @@ workspace:
         - "unsafe-reference"
       git: https://github.com/id3as/purescript-erl-ssl.git
       ref: e37daf97c8a688a15abce813eda629ec62799012
+    simple-json:
+      dependencies:
+        - erl-kernel
+        - erl-lists
+        - erl-maps
+        - exceptions
+        - foreign
+        - nullable
+        - prelude
+        - record
+        - typelevel-prelude
+        - variant
+      path: ../purescript-simple-json
+      # git: https://github.com/id3as/purescript-simple-json.git
+      # ref: f520e292035afd9fb54d099c723870578b7b9770
   backend:
     cmd: purerl
 package:
@@ -144,8 +141,8 @@ package:
     - assert
     - datetime
     - datetime-parsing
-    - erl-file
     - erl-kernel
+    - erl-stdlib
     - erl-process
     - erl-test-eunit
     - erl-test-eunit-discovery

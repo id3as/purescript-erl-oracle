@@ -12,7 +12,7 @@ module Erl.Oracle.Instance
 import Prelude
 
 import Control.Monad.Except (ExceptT, runExcept)
-import Data.Either (Either)
+import Data.Either (Either(..))
 import Data.Identity (Identity)
 import Data.List.NonEmpty (NonEmptyList)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -21,14 +21,18 @@ import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.Binary.IOData (fromString)
 import Erl.Data.List (List)
-import Erl.File (writeFile)
-import Erl.FileLib (mkTemp)
+import Erl.Kernel.File (fileToString, writeFile)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
 import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, OciProfile, Shape(..), SubnetId, ExtendedMetadata)
 import Erl.Oracle.Types.Images (LaunchOptions)
 import Erl.Oracle.Types.Instance (InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, LaunchInstanceRequest, PreemptibleInstanceConfig, PreemptionAction, InstanceDescription)
+import Erl.Stdlib.FileLib (mkTemp)
+import Erl.Types (SandboxedFile)
 import Foreign (F, ForeignError, MultipleErrors)
+import Partial.Unsafe (unsafeCrashWith)
+import Pathy (class IsDirOrFile, class IsRelOrAbs, Abs, File, Path, SandboxedPath, file, posixPrinter, printPath, rootDir, sandbox, (</>))
 import Simple.JSON (readJSON', writeJSON)
+import Type.Prelude (Proxy(..))
 
 type ListInstancesRequest = BaseRequest
   ( availabilityDomain :: Maybe AvailabilityDomainId
@@ -443,9 +447,9 @@ launchInstance
       case _ of
         Just script' -> do
           let
-            ipxeFile = tempDir <> "/ipxe"
+            ipxeFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "ipxe")
           void $ writeFile ipxeFile $ fromString script'
-          pure $ " --ipxe-script-file " <> ipxeFile
+          pure $ " --ipxe-script-file " <> fileToString ipxeFile
         Nothing -> pure ""
 
     writeUserDataFile :: Maybe String -> Effect String
@@ -453,9 +457,9 @@ launchInstance
       case _ of
         Just d -> do
           let
-            userDataFile = tempDir <> "/userData"
+            userDataFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "userData")
           void $ writeFile userDataFile $ fromString d
-          pure $ " --user-data-file " <> userDataFile
+          pure $ " --user-data-file " <> fileToString userDataFile
         Nothing -> pure ""
 
     writeMetadataFile :: Maybe Metadata -> Effect String
@@ -463,9 +467,9 @@ launchInstance
       case _ of
         Just d -> do
           let
-            metadataFile = tempDir <> "/metadata"
+            metadataFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "metadata")
           void $ writeFile metadataFile $ fromString $ writeJSON d
-          pure $ (" --metadata file://" <> metadataFile)
+          pure $ (" --metadata file://" <> fileToString metadataFile)
         Nothing -> pure ""
 
     writeExtendedMetadataFile :: Maybe ExtendedMetadata -> Effect String
@@ -473,9 +477,9 @@ launchInstance
       case _ of
         Just d -> do
           let
-            metadataFile = tempDir <> "/extendedmetadata"
+            metadataFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "extendedmetadata")
           void $ writeFile metadataFile $ fromString $ writeJSON d
-          pure $ (" --extended-metadata file://" <> metadataFile)
+          pure $ (" --extended-metadata file://" <> fileToString metadataFile)
         Nothing -> pure ""
 
     writeSshKeyFile :: Maybe String -> Effect String
@@ -483,9 +487,9 @@ launchInstance
       case _ of
         Just sshKeys -> do
           let
-            sshKeyFile = tempDir <> "/sshKeys"
+            sshKeyFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "sshKeys")
           void $ writeFile sshKeyFile $ fromString sshKeys
-          pure $ " --ssh-authorized-keys-file " <> sshKeyFile
+          pure $ " --ssh-authorized-keys-file " <> fileToString sshKeyFile
         Nothing -> pure ""
 
   ipxeFile' <- writeIpxeFile $ ipxeScript
@@ -586,3 +590,10 @@ stopInstance req@{ instanceId } = do
       (" --instance-id " <> unwrap instanceId)
   outputJson <- runOciCli cli
   pure $ runExcept $ fromStopInstanceResponse =<< readJSON' =<< outputJson
+
+unsafeSandbox :: Path Abs File -> SandboxedFile
+unsafeSandbox path =
+  case sandbox rootDir path of
+    Just val -> Left val
+    Nothing -> unsafeCrashWith "sandbox to root failed"
+
