@@ -130,9 +130,8 @@ workspace:
         - record
         - typelevel-prelude
         - variant
-      path: ../purescript-simple-json
-      # git: https://github.com/id3as/purescript-simple-json.git
-      # ref: f520e292035afd9fb54d099c723870578b7b9770
+      git: https://github.com/id3as/purescript-simple-json.git
+      ref: c467e3a253982db60ab8e149ea47bdce35cf5d24
   backend:
     cmd: purerl
 package:
