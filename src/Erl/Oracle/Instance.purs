@@ -26,11 +26,11 @@ import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
 import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, OciProfile, Shape(..), SubnetId, ExtendedMetadata)
 import Erl.Oracle.Types.Images (LaunchOptions)
 import Erl.Oracle.Types.Instance (InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, LaunchInstanceRequest, PreemptibleInstanceConfig, PreemptionAction, InstanceDescription)
-import Erl.Stdlib.FileLib (mkTemp)
+import Erl.Stdlib.FileLib (mkTempDir)
 import Erl.Types (SandboxedFile)
 import Foreign (F, ForeignError, MultipleErrors)
 import Partial.Unsafe (unsafeCrashWith)
-import Pathy (class IsDirOrFile, class IsRelOrAbs, Abs, File, Path, SandboxedPath, file, posixPrinter, printPath, rootDir, sandbox, (</>))
+import Pathy (Abs, File, Path, file, rootDir, sandbox, (</>))
 import Simple.JSON (readJSON', writeJSON)
 import Type.Prelude (Proxy(..))
 
@@ -440,7 +440,7 @@ launchInstance
     , subnet
     , bootVolumeSizeInGbps
     } = do
-  tempDir <- mkTemp
+  tempDir <- mkTempDir
   let
     writeIpxeFile :: Maybe String -> Effect String
     writeIpxeFile = do

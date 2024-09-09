@@ -42,7 +42,7 @@ workspace:
         - erl-kernel
         - pathy
       git: https://github.com/id3as/purescript-erl-stdlib.git
-      ref: 68224dfbc4e875ebe79a7e698e92a279f8db22dd
+      ref: 384691ea1f3eaf7c25bb640abebd6a0f9da54a6a 
     erl-kernel:
       dependencies:
         - convertable-options
