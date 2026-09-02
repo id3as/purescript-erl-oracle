@@ -37,11 +37,16 @@ workspace:
       ref: 5df4b6fbac7eeedcbd0f6c731949b1fed8a35b99
     erl-stdlib:
       dependencies:
+        - console
         - effect
         - prelude
+        - erl-atom
         - erl-kernel
+        - erl-modules
+        - either
+        - maybe
       git: https://github.com/id3as/purescript-erl-stdlib.git
-      ref: 384691ea1f3eaf7c25bb640abebd6a0f9da54a6a 
+      ref: d9b1ecec1f9bc117c4d4c3d9bf907a204a1b6e0e
     erl-kernel:
       dependencies:
         - convertable-options
@@ -52,6 +57,7 @@ workspace:
         - erl-binary
         - erl-lists
         - erl-maps
+        - erl-modules
         - erl-process
         - erl-tuples
         - erl-untagged-union
@@ -61,13 +67,15 @@ workspace:
         - integers
         - maybe
         - newtype
+        - ordered-collections
         - partial
         - prelude
         - record
+        - strings
         - typelevel-prelude
         - unsafe-coerce
       git: https://github.com/id3as/purescript-erl-kernel.git
-      ref: 526599c1246f24dc337de6f80f1cdecd467b4314
+      ref: 278b2b4c1600b7197de0087b2200c4e14f69437d
     erl-test-eunit:
       dependencies:
         - assert
@@ -97,39 +105,53 @@ workspace:
       ref: 33321117308649036b0b7b467b506d1dbeee5525
     erl-ssl:
       dependencies:
-        - "convertable-options"
-        - "datetime"
-        - "effect"
-        - "either"
-        - "erl-atom"
-        - "erl-binary"
-        - "erl-kernel"
-        - "erl-lists"
-        - "erl-logger"
-        - "erl-otp-types"
-        - "erl-tuples"
-        - "foreign"
-        - "maybe"
-        - "partial"
-        - "prelude"
-        - "record"
-        - "unsafe-reference"
+        - convertable-options
+        - datetime
+        - effect
+        - either
+        - erl-atom
+        - erl-binary
+        - erl-kernel
+        - erl-lists
+        - erl-logger
+        - erl-otp-types
+        - erl-tuples
+        - foreign
+        - maybe
+        - partial
+        - prelude
+        - record
+        - unsafe-reference
       git: https://github.com/id3as/purescript-erl-ssl.git
-      ref: e37daf97c8a688a15abce813eda629ec62799012
+      ref: 5cf3f36cae5775f41c116fcf8178b356765466ea
     simple-json:
       dependencies:
+        - arrays
+        - bifunctors
+        - control
+        - datetime
+        - effect
+        - either
         - erl-kernel
         - erl-lists
         - erl-maps
         - exceptions
+        - foldable-traversable
         - foreign
+        - identity
+        - integers
+        - lists
+        - maybe
+        - newtype
         - nullable
+        - partial
         - prelude
         - record
+        - transformers
         - typelevel-prelude
         - variant
       git: https://github.com/id3as/purescript-simple-json.git
-      ref: c467e3a253982db60ab8e149ea47bdce35cf5d24
+      ref: 650684b69fbd20a2a342a63708974264c9bfbf8f
   backend:
     cmd: purerl
 package:
