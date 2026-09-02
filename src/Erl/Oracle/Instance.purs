@@ -12,27 +12,25 @@ module Erl.Oracle.Instance
 import Prelude
 
 import Control.Monad.Except (ExceptT, runExcept)
-import Data.Either (Either(..))
+import Data.Either (Either)
 import Data.Identity (Identity)
 import Data.List.NonEmpty (NonEmptyList)
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Erl.Data.Binary.IOData (fromString)
 import Erl.Data.List (List)
-import Erl.Kernel.File (fileToString, writeFile)
+import Erl.Kernel.File (writeFile)
+import Erl.Kernel.Filename (filename, filenameToString)
 import Erl.Oracle.Shared (BaseRequest, ociCliBase, ociCliBase', runOciCli)
 import Erl.Oracle.Types.Common (AvailabilityDomainId(..), CapacityReservationId(..), CompartmentId(..), ComputeClusterId, DedicatedVmHostId(..), DefinedTags, FreeformTags, ImageId(..), InstanceId(..), LaunchMode, Metadata, OciProfile, Shape(..), SubnetId, ExtendedMetadata)
 import Erl.Oracle.Types.Images (LaunchOptions)
 import Erl.Oracle.Types.Instance (InstanceAgentConfig, InstanceAgentPluginConfigDetails, InstanceAvailabilityConfig, InstanceLifecycleState, InstanceOptions, InstancePlatformConfig, InstanceShapeConfig, LaunchInstanceRequest, PreemptibleInstanceConfig, PreemptionAction, InstanceDescription)
 import Erl.Stdlib.FileLib (mkTempDir)
-import Erl.Types (SandboxedFile)
 import Foreign (F, ForeignError, MultipleErrors)
 import Partial.Unsafe (unsafeCrashWith)
-import Pathy (Abs, File, Path, file, rootDir, sandbox, (</>))
 import Simple.JSON (readJSON', writeJSON)
-import Type.Prelude (Proxy(..))
 
 type ListInstancesRequest = BaseRequest
   ( availabilityDomain :: Maybe AvailabilityDomainId
@@ -442,55 +440,45 @@ launchInstance
     } = do
   tempDir <- mkTempDir
   let
+    -- The directory comes from mktemp and the names are literals in this
+    -- module, so neither half can be an invalid filename. Crashing here is what
+    -- the unsafeSandbox this replaces already did.
+    inTempDir :: String -> String
+    inTempDir name =
+      (unsafeFromJust "mkTempDir returned a non-UTF-8 path" $ filenameToString tempDir)
+        <> "/"
+        <> name
+
+    -- Writes content to a named file in the temp dir and hands back its path,
+    -- which is all five callers ever wanted from the typed value.
+    writeTempFile :: String -> String -> Effect String
+    writeTempFile name content = do
+      let path = inTempDir name
+      void $ writeFile (unsafeFromJust "temp path must be a valid filename" $ filename path) $ fromString content
+      pure path
+
+    optionally :: forall a. (a -> Effect String) -> Maybe a -> Effect String
+    optionally = maybe (pure "")
+
     writeIpxeFile :: Maybe String -> Effect String
-    writeIpxeFile = do
-      case _ of
-        Just script' -> do
-          let
-            ipxeFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "ipxe")
-          void $ writeFile ipxeFile $ fromString script'
-          pure $ " --ipxe-script-file " <> fileToString ipxeFile
-        Nothing -> pure ""
+    writeIpxeFile = optionally \script' ->
+      (" --ipxe-script-file " <> _) <$> writeTempFile "ipxe" script'
 
     writeUserDataFile :: Maybe String -> Effect String
-    writeUserDataFile = do
-      case _ of
-        Just d -> do
-          let
-            userDataFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "userData")
-          void $ writeFile userDataFile $ fromString d
-          pure $ " --user-data-file " <> fileToString userDataFile
-        Nothing -> pure ""
+    writeUserDataFile = optionally \d ->
+      (" --user-data-file " <> _) <$> writeTempFile "userData" d
 
     writeMetadataFile :: Maybe Metadata -> Effect String
-    writeMetadataFile = do
-      case _ of
-        Just d -> do
-          let
-            metadataFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "metadata")
-          void $ writeFile metadataFile $ fromString $ writeJSON d
-          pure $ (" --metadata file://" <> fileToString metadataFile)
-        Nothing -> pure ""
+    writeMetadataFile = optionally \d ->
+      (" --metadata file://" <> _) <$> writeTempFile "metadata" (writeJSON d)
 
     writeExtendedMetadataFile :: Maybe ExtendedMetadata -> Effect String
-    writeExtendedMetadataFile = do
-      case _ of
-        Just d -> do
-          let
-            metadataFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "extendedmetadata")
-          void $ writeFile metadataFile $ fromString $ writeJSON d
-          pure $ (" --extended-metadata file://" <> fileToString metadataFile)
-        Nothing -> pure ""
+    writeExtendedMetadataFile = optionally \d ->
+      (" --extended-metadata file://" <> _) <$> writeTempFile "extendedmetadata" (writeJSON d)
 
     writeSshKeyFile :: Maybe String -> Effect String
-    writeSshKeyFile = do
-      case _ of
-        Just sshKeys -> do
-          let
-            sshKeyFile = unsafeSandbox $ tempDir </> file (Proxy :: _ "sshKeys")
-          void $ writeFile sshKeyFile $ fromString sshKeys
-          pure $ " --ssh-authorized-keys-file " <> fileToString sshKeyFile
-        Nothing -> pure ""
+    writeSshKeyFile = optionally \sshKeys ->
+      (" --ssh-authorized-keys-file " <> _) <$> writeTempFile "sshKeys" sshKeys
 
   ipxeFile' <- writeIpxeFile $ ipxeScript
   userDataFile' <- writeUserDataFile $ userData
@@ -591,9 +579,6 @@ stopInstance req@{ instanceId } = do
   outputJson <- runOciCli cli
   pure $ runExcept $ fromStopInstanceResponse =<< readJSON' =<< outputJson
 
-unsafeSandbox :: Path Abs File -> SandboxedFile
-unsafeSandbox path =
-  case sandbox rootDir path of
-    Just val -> Left val
-    Nothing -> unsafeCrashWith "sandbox to root failed"
+unsafeFromJust :: forall a. String -> Maybe a -> a
+unsafeFromJust s = fromMaybe' (\_ -> unsafeCrashWith s)
 
