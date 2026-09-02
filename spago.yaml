@@ -116,15 +116,9 @@ workspace:
         - "unsafe-reference"
       git: https://github.com/id3as/purescript-erl-ssl.git
       ref: e37daf97c8a688a15abce813eda629ec62799012
-    pathy:
-      dependencies:
-        - prelude
-      git: https://github.com/id3as/purescript-pathy.git
-      ref: c23c7b772c37bc499503ea63867287200fa44966
     simple-json:
       dependencies:
         - erl-kernel
-        - pathy
         - erl-lists
         - erl-maps
         - exceptions
